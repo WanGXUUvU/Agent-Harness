@@ -32,7 +32,7 @@ def get_todo_by_id_api(todo_id: int,db: Session = Depends(get_db)):
 
 @router.post("/todos", response_model=TodoResponse, status_code=201)
 def create_todos_api(request: TodoCreate,db: Session = Depends(get_db)):
-    return create_todo(db,request.title)
+    return create_todo(db,request.title,request.done,request.priority)
 
 
 @router.delete("/todos/{todo_id}",response_model=TodoResponse)
@@ -43,9 +43,11 @@ def delete_todo_api(todo_id: int,db: Session = Depends(get_db)):
     return todo
 
 
-@router.patch("/todos/{todo_id}")
+@router.patch("/todos/{todo_id}",response_model=TodoResponse)
 def update_todo_api(todo_id: int, request: TodoUpdate,db: Session = Depends(get_db)):
-    todo=update_todo(db,todo_id,request.title)
+    if request.title is None and request.done is None and request.priority is None:
+        raise HTTPException(status_code=400,detail="No fields provided for update")
+    todo=update_todo(db,todo_id,request.title,request.done,request.priority)
     if todo is None:
         raise HTTPException(status_code=404, detail="Todo not found")
     return todo
