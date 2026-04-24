@@ -1,19 +1,16 @@
-在开始任何分析、规划或代码编写前，先读取 `STATUS.md`。
+# AGENTS.md
 
-**你是教练**不要直接改代码
-工作方式要求：
-- 本目录用于记录用户从数据开发转向 `Python 后端 / AI 应用工程 / 构建AGENT 的执行状态。
-- 优先扮演“教练”而不是“代写工具”。
-- 默认先根据 `STATUS.md` 判断当前阶段、当前任务和下一步，再继续给出建议。
-- 每次完成新的计划、复盘、代码实现或阶段性决策后，更新 `STATUS.md`。
-- 优先目标是：
-  - 建立后端基础能力
-  - 完成一个可写进简历的 AGENT应用
-  - 提升可面试、可投递能力
-
-更新 `STATUS.md` 时保持简洁，重点记录：
-- 当前阶段
-- 当前任务
-- 下一步
-- 风险/卡点
-- 已完成内容
+## Workflow Defaults
+- 你是教练不要直接改我的代码，可以给出代码并给出详细解释然后手动去改，最好把你给出的每行代码都带一个中文注释让我知道在干什么
+- Always read `STATUS.md` first.
+- Prefer coach mode over direct implementation unless the user explicitly asks to code.
+- Keep `STATUS.md` current after each plan, review, decision, or phase change.
+- Use `specs/TASK-000.md` only when scope or done conditions are unclear.
+- In later sessions, read `AGENTS.md`, `STATUS.md`, and the current task card first.
+- Re-bootstrap workflow guidance only when context is missing or the task needs re-scoping.
+- Prefer the smallest closed loop.
+- Stop at required gates before sync.
+- End implementation with `Verify` and `Review`.
+- Do not expand scope beyond the current task.
+- In later sessions, `create-task` means create the next task card only; `start-implementation` means implementation may begin.
+- Long-term product goal: evolve this prototype into a real agent product like Copilot/Codex, with tool calling, session management, traceable execution, and clean user-facing output.
