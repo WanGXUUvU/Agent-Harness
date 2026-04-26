@@ -1,25 +1,29 @@
-# TASK-006
+# TASK-006 - SkillPack 文件结构
 
-## Goal
-把当前 agent 的硬编码提示词和工具入口整理成最小可扩展的 `Prompt/Skill` 体系，为后续接入更完整的工具调用和 MCP 做准备。
+## 目标
+建立项目自己的 SkillPack 文件结构，让 skill 从 Python 内存对象变成可读、可维护、可扩展的文件化工作流。
 
-## In Scope
-- 将 `SYSTEM_PROMPT` 从代码里抽离成可配置入口
-- 定义最小 `skill` 结构，能描述任务目标、约束和可用工具
-- 让 `Agent` 在运行前能选择或注入一个 skill
-- 把现有本地工具注册整理成统一入口
-- 保持现有 `/run`、`/reset`、会话持久化和 `events` 行为不变
+## 产品层
+SkillPack
 
-## Out of Scope
-- 完整的技能市场
-- 多 skill 自动路由
-- 前端 skill 选择 UI
-- 真正的 MCP server 实现
-- 多 Agent 编排
-- RAG
+## 范围内
+- 处理现有空文件 `agent_prototype/skills.py` 与目标目录 `agent_prototype/skills/` 的命名冲突
+- 新建 `agent_prototype/skills/`
+- 新建至少一个默认 SkillPack：`agent_prototype/skills/default/SKILL.md`
+- 定义 `SKILL.md` 的最小字段：`name`、`description`、`instructions`
+- 保留现有 `/run`、`/reset`、session、events 行为不变
 
-## Done when
-- agent 不再依赖单一硬编码 system prompt
-- 至少能用一个 skill 配置驱动一次完整运行
-- 本地工具有统一注册和调用入口
-- 现有工具调用闭环和测试不受影响
+## 范围外
+- 自动选择 skill
+- SkillPack 数据库存储
+- SkillPack 创建 UI
+- MCP
+- 工具权限约束
+
+## 完成标准
+- 仓库里存在清晰的 SkillPack 目录
+- 默认 skill 可以被人直接阅读
+- 现有测试仍然通过
+
+## 验证
+- `python3 -m unittest agent_prototype.tests.test_agent -v`
