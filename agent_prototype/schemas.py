@@ -40,6 +40,7 @@ class AgentState(BaseModel):
     step:int=0
 
 class AgentEvent(BaseModel):
+    index:int
     type:Literal["assistant_tool_call","tool_result","final_answer"]
     content:Optional[str]=None
     tool_name:Optional[str]=None

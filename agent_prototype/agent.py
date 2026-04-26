@@ -29,6 +29,7 @@ class Agent:
     def run(self, agent_input: AgentInput) -> AgentOutput:
 
         events= []
+        event_index = 0
         self.state.messages.append(ChatMessage(role="user", content=agent_input.user_input))
         self.state.step += 1
 
@@ -53,12 +54,14 @@ class Agent:
                 for tool_call in assistant_message.tool_calls or []:
                     events.append(
                         AgentEvent(
+                            index=event_index,
                             type="assistant_tool_call",
                             tool_name=tool_call.function.name,
                             tool_call_id=tool_call.id,
                             content=tool_call.function.arguments,
                         )
                     )
+                    event_index += 1
                     tool_result = execute_tool(tool_call)
                     # 把工具执行结果作为 tool 消息回填给模型。
                     # tool_call_id 必须和这次 tool_calls 的 id 对上。
@@ -73,12 +76,14 @@ class Agent:
 
                     events.append(
                         AgentEvent(
+                            index=event_index,
                             type="tool_result",
                             tool_name=tool_call.function.name,
                             tool_call_id=tool_call.id,
                             content=tool_result,
                         )
                     )
+                    event_index += 1
                 continue
 
             # 如果没有 tool_calls，说明模型已经给出了最终回复。
@@ -87,6 +92,7 @@ class Agent:
 
             events.append(
                 AgentEvent(
+                    index=event_index,
                     type="final_answer",
                     content=reply
                 )

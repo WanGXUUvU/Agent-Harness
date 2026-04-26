@@ -1,10 +1,15 @@
 import unittest
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from agent_prototype.agent import Agent
 from agent_prototype.app import app
+from agent_prototype.db import Base, get_db
 from agent_prototype.schemas import AgentInput
 
 
@@ -23,6 +28,16 @@ class TestAgent(unittest.TestCase):
             [
                 {"role": "user", "content": "你好"},
                 {"role": "assistant", "content": "mock reply"},
+            ],
+        )
+        self.assertEqual(
+            [e.model_dump(exclude_none=True) for e in output.events],
+            [
+                {
+                    "index": 0,
+                    "type": "final_answer",
+                    "content": "mock reply",
+                }
             ],
         )
         mock_call_llm.assert_called_once()
@@ -80,15 +95,56 @@ class TestAgent(unittest.TestCase):
                 {"role": "assistant", "content": "final reply"},
             ],
         )
+        self.assertEqual(
+            [e.model_dump(exclude_none=True) for e in output.events],
+            [
+                {
+                    "index": 0,
+                    "type": "assistant_tool_call",
+                    "tool_name": "echo_tool",
+                    "tool_call_id": "call_001",
+                    "content": "{\"text\": \"hello\"}",
+                },
+                {
+                    "index": 1,
+                    "type": "tool_result",
+                    "tool_name": "echo_tool",
+                    "tool_call_id": "call_001",
+                    "content": "tool received:hello",
+                },
+                {
+                    "index": 2,
+                    "type": "final_answer",
+                    "content": "final reply",
+                },
+            ],
+        )
         self.assertEqual(mock_call_llm.call_count, 2)
 
 
 class TestAgentApi(unittest.TestCase):
     def setUp(self):
-        from agent_prototype.routes import session_store
+        self.temp_dir = tempfile.TemporaryDirectory()
+        db_path = Path(self.temp_dir.name) / "test_agent.db"
+        self.engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=self.engine)
 
-        session_store.clear()
+        TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+
+        def override_get_db():
+            db = TestingSessionLocal()
+            try:
+                yield db
+            finally:
+                db.close()
+
+        app.dependency_overrides[get_db] = override_get_db
         self.client = TestClient(app)
+
+    def tearDown(self):
+        app.dependency_overrides.clear()
+        self.engine.dispose()
+        self.temp_dir.cleanup()
 
     @patch("agent_prototype.agent.call_llm", return_value={"role": "assistant", "content": "mock reply"})
     def test_run_endpoint(self, mock_call_llm):
@@ -103,5 +159,17 @@ class TestAgentApi(unittest.TestCase):
             [
                 {"role": "user", "content": "你好", "tool_calls": None, "tool_call_id": None},
                 {"role": "assistant", "content": "mock reply", "tool_calls": None, "tool_call_id": None},
+            ],
+        )
+        self.assertEqual(
+            data["events"],
+            [
+                {
+                    "index": 0,
+                    "type": "final_answer",
+                    "content": "mock reply",
+                    "tool_name": None,
+                    "tool_call_id": None,
+                }
             ],
         )

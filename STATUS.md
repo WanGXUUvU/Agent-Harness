@@ -2,12 +2,12 @@
 
 ## Current Status
 - Phase: planning
-- Task: agent 主线回归，下一张任务卡待创建
+- Task: specs/TASK-006.md
 - Gate: Draft
 - Allowed Now: start-implementation
 - Lane: Fast
 - Blocked: None
-- Next action: 回到 agent 主线，确定下一步要强化的能力点。
+- Next action: 继续 `TASK-006` 的 Prompt/Skill 体系 v1。
 
 ## 遗留项
 - 见 `specs/TASK-002.md`
@@ -29,3 +29,9 @@
 | 2026-04-26 | 创建下一张任务卡 | planning | 新增 `specs/TASK-004.md`，聚焦 SQLite 迁移与 Alembic。 |
 | 2026-04-26 | `TASK-004` 验证完成 | Verify | Alembic baseline migration 已补齐并通过 `upgrade head` / `current` 验证。 |
 | 2026-04-26 | `TASK-004` 收口 | Review | `session_records` 已完成 Alembic 接管，迁移流程可用。 |
+| 2026-04-26 | 创建下一张任务卡 | planning | 新增 `specs/TASK-005.md`，聚焦结构化执行轨迹输出。 |
+| 2026-04-26 | `TASK-005` 验证完成 | Verify | `AgentEvent` 结构化输出与测试已跑通，`/run` 返回稳定轨迹。 |
+| 2026-04-26 | `TASK-005` 收口 | Review | 结构化执行轨迹已完成，主线回到 Prompt/Skill 与工具编排。 |
+| 2026-04-26 | 创建下一张任务卡 | planning | 新增 `specs/TASK-006.md`，聚焦 Prompt/Skill 体系 v1。 |
+| 2026-04-26 | 仓库体检 | Review | 发现 `tools.py` 冲突标记导致测试无法导入，且 `llm_client.py` 存在硬编码 API Key，需先处理。 |
+| 2026-04-26 | 修复导入阻塞 | Verify | `tools.py` 的 merge conflict 标记已清除，`python3 -m unittest agent_prototype.tests.test_agent -v` 通过。 |
