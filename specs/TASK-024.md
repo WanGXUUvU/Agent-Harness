@@ -1,27 +1,39 @@
 # TASK-024 - MCP 边界设计
 
 ## 目标
-设计 MCP 接入边界，先明确系统怎么接，不急着实现 server。
+定义 MCP 在本项目里的边界，明确什么时候接入、怎么映射到 Tool Registry。
 
 ## 产品层
-Tool Registry
+MCP / Tool Platform
 
 ## 范围内
-- 定义本地工具和 MCP 工具的共同抽象
-- 明确工具发现、调用、错误、超时边界
-- 记录需要哪些配置
-- 输出后续 MCP 实现任务
+- 设计 MCP server 配置结构
+- 设计 MCP tool 到本地 ToolDefinition 的映射
+- 明确错误、权限、trace 的映射方式
+- 产出后续实现任务卡
 
 ## 范围外
-- 真正启动 MCP server
-- OAuth
-- 远程工具市场
-- 前端配置页
+- 真正接入 MCP server
+- UI 管理 MCP
+- 插件 marketplace
+
+## 实现步骤
+1. 阅读当前 Tool Registry 结构。
+2. 定义 MCP 工具最小字段：server、name、schema、description。
+3. 设计映射到 `ToolDefinition` 的方式。
+4. 明确权限判断发生在 registry 之前还是之后。
+5. 写成设计说明并创建后续任务卡。
 
 ## 完成标准
-- MCP 不再是模糊目标
-- Tool Registry 有清晰扩展方向
-- 可以创建 MCP 实现卡
+- MCP 接入点清楚。
+- 不需要推翻 Tool Registry。
+- 后续能小步实现。
 
 ## 验证
-- 仅 Review
+- 仅 Review。
+
+## Review 检查点
+- 是否没有把 MCP 直接塞进 Agent。
+- 是否保留本地工具和 MCP 工具统一入口。
+- 权限和 trace 是否考虑到。
+

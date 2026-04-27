@@ -1,27 +1,39 @@
 # TASK-016 - Trace 回放接口
 
 ## 目标
-把执行轨迹从一次响应里的临时数据，推进到可回放的产品能力。
+提供按 session 读取历史 trace 的接口，让用户能回看 agent 执行过程。
 
 ## 产品层
-执行轨迹层（Execution Trace）
+Trace / API
 
 ## 范围内
-- 设计 trace 存储位置
-- 保存每次 `/run` 的事件序列
-- 新增读取某次运行 trace 的接口
-- 保持当前 response 仍然返回 events
+- 保存每次 run 的 events
+- `GET /sessions/{session_id}/trace`
+- 支持按 run_id 过滤
+- 返回事件顺序稳定
 
 ## 范围外
-- 实时流式事件
-- 可视化时间线
-- 长期压缩
-- 分布式 trace
+- 实时 streaming
+- 复杂时间线查询
+- 可视化 UI
+
+## 实现步骤
+1. 确认当前 events 是否只在 response 中返回，若未持久化则新增存储。
+2. 设计 trace record 或嵌入 session state 的方案。
+3. 每次 run 后保存 events。
+4. 新增 trace API。
+5. 测试多次 run 的事件顺序。
 
 ## 完成标准
-- 用户可以在请求结束后再次读取 trace
-- trace 和 session 能关联
-- 当前测试和 API 行为不回退
+- 历史执行轨迹可重新读取。
+- trace 和 session/run 有明确关联。
+- 事件 schema 复用现有 `AgentEvent`。
 
 ## 验证
 - `python3 -m unittest agent_prototype.tests.test_agent -v`
+
+## Review 检查点
+- 是否避免重复存储过多内容。
+- run_id 是否为后续后台任务留接口。
+- trace 事件是否向后兼容。
+
