@@ -9,6 +9,8 @@ from sqlalchemy.orm import sessionmaker
 
 from agent_prototype.runtime.agent import Agent
 from agent_prototype.core.agent_definition import AgentDefinition
+from agent_prototype.core.schemas import AgentInput, AgentState, SkillSummary
+from agent_prototype.storage.session_store import SqliteSessionStore
 from agent_prototype.storage.agent_definition_store import SqliteAgentDefinitionStore
 from agent_prototype.api.app import app
 from agent_prototype.runtime.agent_loader import load_agent_definition
@@ -16,7 +18,6 @@ from agent_prototype.runtime.skill_loader import list_skills
 from agent_prototype.runtime.tool_registry import build_default_tool_registry
 from agent_prototype.storage.db import Base, get_db
 from agent_prototype.storage.models import SessionRecord, SessionRunEventRecord, SessionRunRecord
-from agent_prototype.core.schemas import AgentInput, SkillSummary
 
 
 class TestAgentLoader(unittest.TestCase):
@@ -468,6 +469,109 @@ class TestAgentApi(unittest.TestCase):
                 }
             ],
         )
+
+    @patch("agent_prototype.runtime.services.call_llm", return_value={"role": "assistant", "content": "中段历史摘要"})
+    def test_compact_endpoint_returns_compacted_state(self, mock_call_llm):
+        db = self.session_local()
+        try:
+            store = SqliteSessionStore(db)
+            state = AgentState(
+                messages=[
+                    {"role": "user", "content": "最初任务目标"},
+                    {"role": "assistant", "content": "好的，我们先拆任务"},
+                    {"role": "user", "content": "我需要支持 tool calling"},
+                    {"role": "assistant", "content": "我们需要看 OpenAI 文档"},
+                    {"role": "tool", "content": "tool result: Responses API docs"},
+                    {"role": "assistant", "content": "我们再确认一遍上下文压缩策略"},
+                    {"role": "user", "content": "我要保留关键约束"},
+                    {"role": "assistant", "content": "好的，关键约束需要进入摘要"},
+                    {"role": "tool", "content": "tool result: compact best practices"},
+                    {"role": "user", "content": "还要保留最近原始消息"},
+                    {"role": "assistant", "content": "明白，我们采用三段式策略"},
+                    {"role": "user", "content": "继续准备自动 compact"},
+                    {"role": "assistant", "content": "自动 compact 会在 /run 前触发"},
+                    {"role": "user", "content": "现在开始做 compact"},
+                ]
+            )
+            store.upsert_session_snapshot("compact-session", state=state)
+            db.commit()
+        finally:
+            db.close()
+
+        response = self.client.post(
+            "/compact",
+            json={
+                "session_id": "compact-session",
+                "trigger_threshold": 4,
+                "keep_recent_count": 2,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["did_compact"])
+        self.assertEqual(data["state"]["messages"][0]["content"], "最初任务目标")
+        self.assertEqual(data["state"]["messages"][1]["role"], "system")
+        self.assertIn("中段历史摘要", data["state"]["messages"][1]["content"])
+        self.assertEqual(data["state"]["messages"][-2]["content"], "tool result: Responses API docs")
+        self.assertEqual(data["state"]["messages"][-1]["content"], "现在开始做 compact")
+        mock_call_llm.assert_called_once()
+
+    @patch(
+        "agent_prototype.runtime.agent.call_llm",
+        return_value={"role": "assistant", "content": "run reply after auto compact"},
+    )
+    @patch("agent_prototype.runtime.services.call_llm", return_value={"role": "assistant", "content": "自动压缩后的中段摘要"})
+    def test_run_endpoint_auto_compacts_long_session_before_reply(self, mock_compact_call_llm, mock_run_call_llm):
+        db = self.session_local()
+        try:
+            store = SqliteSessionStore(db)
+            state = AgentState(
+                messages=[
+                    {"role": "user", "content": "最初任务目标"},
+                    {"role": "assistant", "content": "好的，我们先拆任务"},
+                    {"role": "user", "content": "我需要支持 tool calling"},
+                    {"role": "assistant", "content": "我们需要看 OpenAI 文档"},
+                    {"role": "tool", "content": "tool result: Responses API docs"},
+                    {"role": "assistant", "content": "我们再确认一遍上下文压缩策略"},
+                    {"role": "user", "content": "我要保留关键约束"},
+                    {"role": "assistant", "content": "好的，关键约束需要进入摘要"},
+                    {"role": "tool", "content": "tool result: compact best practices"},
+                    {"role": "user", "content": "还要保留最近原始消息"},
+                    {"role": "assistant", "content": "明白，我们采用三段式策略"},
+                    {"role": "user", "content": "继续准备自动 compact"},
+                    {"role": "assistant", "content": "自动 compact 会在 /run 前触发"},
+                    {"role": "user", "content": "现在开始做 compact"},
+                ]
+            )
+            store.upsert_session_snapshot("auto-compact-session", state=state)
+            db.commit()
+        finally:
+            db.close()
+
+        response = self.client.post(
+            "/run",
+            json={
+                "session_id": "auto-compact-session",
+                "user_input": "继续执行下一步",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["reply"], "run reply after auto compact")
+
+        compacted_messages = data["state"]["messages"]
+        self.assertEqual(compacted_messages[0]["content"], "最初任务目标")
+        self.assertEqual(compacted_messages[1]["role"], "system")
+        self.assertIn("自动压缩后的中段摘要", compacted_messages[1]["content"])
+        self.assertEqual(compacted_messages[-2]["role"], "user")
+        self.assertEqual(compacted_messages[-2]["content"], "继续执行下一步")
+        self.assertEqual(compacted_messages[-1]["role"], "assistant")
+        self.assertEqual(compacted_messages[-1]["content"], "run reply after auto compact")
+
+        mock_compact_call_llm.assert_called_once()
+        mock_run_call_llm.assert_called_once()
 
     @patch("agent_prototype.runtime.agent.call_llm", return_value={"role": "assistant", "content": "mock reply\nwith preview"})
     def test_run_endpoint_updates_session_metadata(self, mock_call_llm):

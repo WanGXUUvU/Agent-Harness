@@ -18,6 +18,8 @@ from ..core.schemas import (
     AgentEvent,
     AgentInput,
     AgentOutput,
+    CompactInput,
+    CompactOutput,
     ResetInput,
     SessionDetail,
     SessionSummary,
@@ -26,7 +28,7 @@ from ..core.schemas import (
     TraceRunSummary,
     SkillSummary,
 )
-from ..runtime.services import reset_session_service, run_agent_service
+from ..runtime.services import reset_session_service, run_agent_service,compact_session_service
 from ..storage.db import get_db
 from ..storage.session_store import SqliteSessionStore
 from ..runtime.skill_loader import list_skills
@@ -177,3 +179,12 @@ def enable_skill_api(skill_name: str) -> SkillSummary:
         return enable_skill_service(skill_name)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    
+@router.post("/compact",response_model=CompactOutput)
+def compact_session_api(payload:CompactInput,db:Session=Depends(get_db))->CompactOutput:
+    """输入：CompactInput 请求对象、数据库会话。输出：CompactOutput 响应对象。"""  # 暴露手动 compact 的 HTTP 入口
+    
+    try:
+        return compact_session_service(payload,db)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail=str(exc))

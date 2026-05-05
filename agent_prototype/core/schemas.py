@@ -73,6 +73,11 @@ class ResetInput(BaseModel):
 
     session_id: str = Field(min_length=1)
 
+class CompactInput(BaseModel):
+    """/compact 请求体"""
+    session_id:str=Field(min_length=1)
+    trigger_threshold:int=Field(default=12,ge=1)#触发compact的消息阈值 默认12 最小1
+    keep_recent_count:int=Field(default=4,ge=1)#压缩后保留最近几条原始消息 默认4 最小1
 
 class AgentState(BaseModel):
     """某个 session 的最新状态快照。"""
@@ -100,6 +105,13 @@ class AgentOutput(BaseModel):
     reply: str
     state: AgentState
     events: list[AgentEvent]
+
+class CompactOutput(BaseModel):
+    """/compact 响应体"""
+
+    state:AgentState
+    did_compact:bool
+    removed_count:int=0 #一共折叠了多少条旧消息
 
 
 class SessionSummary(BaseModel):
@@ -150,3 +162,6 @@ class SkillSummary(BaseModel):
     path:str #裁剪后的安全路径
     enabled:bool=True
     error:Optional[str]=None #skill损坏 返回的错误信息
+
+
+
