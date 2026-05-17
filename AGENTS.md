@@ -36,6 +36,8 @@
 每次只推进 `STATUS.md` 当前指向的一张任务卡。  
 `specs/TASK-000.md` 只在 scope 或 done conditions 不清楚时使用。
 
+任务编号不是严格连续时间线。遇到临时插入的重构卡、补丁卡或收口卡时，优先按 `STATUS.md` 当前指向和任务卡正文语义理解，不要只根据数字大小判断先后。
+
 ---
 
 ## Command Meanings
