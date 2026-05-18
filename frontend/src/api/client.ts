@@ -92,12 +92,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ user_input, partial_reply, agent_name }),
     }),
-  getTrace: (session_id: string) => fetchApi<TraceResponse>(`/sessions/${session_id}/trace`),
+  getTrace: (session_id: string, run_id?: string) => {
+    const url = run_id 
+      ? `/sessions/${session_id}/trace?run_id=${encodeURIComponent(run_id)}`
+      : `/sessions/${session_id}/trace`;
+    return fetchApi<TraceResponse>(url);
+  },
   getSkills: () => fetchApi<SkillMetadata[]>('/skills'),
   enableSkill: (skill_name: string) => fetchApi<SkillMetadata>(`/skills/${skill_name}/enable`, { method: 'POST' }),
   disableSkill: (skill_name: string) => fetchApi<SkillMetadata>(`/skills/${skill_name}/disable`, { method: 'POST' }),
   compactSession: (session_id: string) => fetchApi<CompactResponse>(`/compact`, { method: 'POST', body: JSON.stringify({ session_id, trigger_threshold: 1 }) }), // 手动 compact 传 trigger_threshold:1，跳过默认 12 条阈值，确保任何时候都能触发
   resetSession: (session_id: string) => fetchApi<{ok: boolean}>(`/reset`, { method: 'POST', body: JSON.stringify({ session_id }) }),
   deleteSession: (session_id: string) => fetchApi<{ok: boolean}>(`/sessions/${session_id}`, { method: 'DELETE' }),
-  renameSession: (session_id: string, session_name: string) => fetchApi<{ok: boolean}>(`/sessions/${session_id}`, { method: 'PATCH', body: JSON.stringify({ session_name }) })
+  renameSession: (session_id: string, session_name: string) => fetchApi<{ok: boolean}>(`/sessions/${session_id}`, { method: 'PATCH', body: JSON.stringify({ session_name }) }),
+  getChildRunStatus: (run_id: string) => fetchApi<{ status: string; reply: string | null; error: string | null }>(`/child-runs/${run_id}`),
 };

@@ -1,3 +1,11 @@
+export interface ChildAgentInfo {
+  run_id: string;
+  agent_name: string;
+  status: 'running' | 'done' | 'error' | 'not_found';
+  reply: string | null;
+  error: string | null;
+}
+
 export interface SessionSummary {
   session_id: string;
   session_name?: string;

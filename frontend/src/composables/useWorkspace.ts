@@ -3,11 +3,13 @@ import { api } from '../api/client';
 import type {
   SessionSummary,
   AgentMessage,
+  AgentEvent,
   SkillMetadata,
   CompactResponse,
   TraceResponse,
   TraceRunSummary,
   StreamingItem,
+  ChildAgentInfo,
 } from '../types';
 import type { ViewMode } from '../types/ui';
 import { MOCK_AGENTS } from '../mock/ui-mocks';
@@ -34,6 +36,11 @@ function writeTimelineToStore(runId: string, timeline: StreamingItem[]) {
   if (typeof window === 'undefined') return;
   const store = readTimelineStore();
   store[runId] = timeline;
+  // 超过 50 条时删掉最早插入的，防止 localStorage 无限增长
+  const keys = Object.keys(store);
+  if (keys.length > 50) {
+    delete store[keys[0]];
+  }
   window.localStorage.setItem(TIMELINE_STORAGE_KEY, JSON.stringify(store));
 }
 
@@ -121,6 +128,95 @@ export function useWorkspace() {
   const lastCompletedRun = ref<TraceRunSummary | null>(null);
   const errorMsg = ref<string | null>(null);
   const infoMsg = ref<string | null>(null);
+
+  // 子 Agent 追踪：key = session_id，value = 当前 session spawn 出的子 Agent 列表
+  const childAgentsBySession = ref<Record<string, ChildAgentInfo[]>>({});
+  let childPollTimer: ReturnType<typeof setInterval> | null = null;
+
+  // 单个 agent_event 到达时，实时检测是否是 spawn_child_agent 的 tool_result
+  function onLiveAgentEvent(sessionId: string, ev: AgentEvent) {
+    if (ev.type !== 'tool_result' || ev.tool_name !== 'spawn_child_agent' || !ev.tool_result?.ok) return;
+    const runId = ev.tool_result.content ?? '';
+    const agentName = (ev.tool_result.metadata?.agent_name as string) ?? '子Agent';
+    if (!runId) return;
+    const existing = childAgentsBySession.value[sessionId] ?? [];
+    if (existing.find(c => c.run_id === runId)) return; // 已有，跳过
+    childAgentsBySession.value[sessionId] = [
+      ...existing,
+      { run_id: runId, agent_name: agentName, status: 'running', reply: null, error: null },
+    ];
+    startChildPolling();
+  }
+
+  // 从消息的 timeline 事件里解析 spawn_child_agent tool_result，提取子 Agent 信息
+  function extractChildAgents(sessionId: string, msgs: AgentMessage[]) {
+    const children: ChildAgentInfo[] = [];
+    
+    // 从消息中的 timeline 查找
+    for (const msg of msgs) {
+      if (!msg.timeline) continue;
+      for (const item of msg.timeline) {
+        if (item.kind !== 'event') continue;
+        const ev = item.event;
+        if (ev.type === 'tool_result' && ev.tool_name === 'spawn_child_agent' && ev.tool_result?.ok) {
+          const runId = ev.tool_result.content ?? '';
+          const agentName = (ev.tool_result.metadata?.agent_name as string) ?? '子Agent';
+          if (runId && !children.find(c => c.run_id === runId)) {
+            children.push({ run_id: runId, agent_name: agentName, status: 'running', reply: null, error: null });
+          }
+        }
+      }
+    }
+    
+    // 如果从 timeline 中没有找到，再从 traceRuns 中查找
+    if (children.length === 0) {
+      for (const run of traceRuns.value) {
+        for (const event of run.events) {
+          if (event.type === 'tool_result' && event.tool_name === 'spawn_child_agent' && event.tool_result?.ok) {
+            const runId = event.tool_result.content ?? '';
+            const agentName = (event.tool_result.metadata?.agent_name as string) ?? '子Agent';
+            if (runId && !children.find(c => c.run_id === runId)) {
+              // 从 traceRuns 恢复时，状态统一设为 running，轮询会拉取真实状态更新
+              children.push({ run_id: runId, agent_name: agentName, status: 'running', reply: null, error: null });
+            }
+          }
+        }
+      }
+    }
+    
+    if (children.length > 0) {
+      childAgentsBySession.value[sessionId] = children;
+      startChildPolling();
+    }
+  }
+
+  function startChildPolling() {
+    if (childPollTimer !== null) return;
+    childPollTimer = setInterval(async () => {
+      let anyRunning = false;
+      for (const [sid, children] of Object.entries(childAgentsBySession.value)) {
+        for (const child of children) {
+          if (child.status === 'running') {
+            anyRunning = true;
+            try {
+              const res = await api.getChildRunStatus(child.run_id);
+              child.status = res.status as ChildAgentInfo['status'];
+              child.reply = res.reply;
+              child.error = res.error;
+            } catch {
+              // 网络错误不影响轮询
+            }
+          }
+        }
+        // Vue 响应式需要触发更新
+        childAgentsBySession.value[sid] = [...children];
+      }
+      if (!anyRunning) {
+        clearInterval(childPollTimer!);
+        childPollTimer = null;
+      }
+    }, 2000);
+  }
 
   const messages = computed(() => [...historyMessages.value, ...currentMessages.value]);
   const activeSession = computed(() =>
@@ -212,6 +308,7 @@ export function useWorkspace() {
       }
       
       currentMessages.value = msgs;
+      extractChildAgents(id, msgs);
       errorMsg.value = null;
     } catch (err: any) {
       if (err.message.includes('not found') || err.message.includes('404')) {
@@ -265,6 +362,10 @@ export function useWorkspace() {
           if (frame.data.type !== 'final_answer') {
             streamingTimeline.value = [...streamingTimeline.value, { kind: 'event', event: frame.data }];
           }
+          // 实时检测 spawn_child_agent，让侧边栏立即出现子 Agent
+          if (activeSessionId.value) {
+            onLiveAgentEvent(activeSessionId.value, frame.data);
+          }
         } else if (frame.type === 'end') {
           // 冻结时间线，patch 进新消息里，再替换 currentMessages
           const frozenTimeline = [...streamingTimeline.value];
@@ -279,6 +380,10 @@ export function useWorkspace() {
             }
           }
           currentMessages.value = newMsgs;
+          // 解析新消息里的子 Agent 事件，触发轮询
+          if (activeSessionId.value) {
+            extractChildAgents(activeSessionId.value, newMsgs);
+          }
           // 只刷新 sessions 列表（更新预览文字），不传 preferredSessionId 避免触发 watch → loadSessionDetail
           // loadSessionDetail 会覆盖 currentMessages，把刚写入的 timeline 冲掉
           const [, traceResult] = await Promise.allSettled([
@@ -370,6 +475,8 @@ export function useWorkspace() {
     try {
       await api.deleteSession(id);
       clearSessionResetHistory(id);
+      // 清掉该 session 的子 Agent 面板
+      delete childAgentsBySession.value[id];
       if (activeSessionId.value === id) {
         activeSessionId.value = null;
         historyMessages.value = [];
@@ -473,6 +580,8 @@ export function useWorkspace() {
     lastCompletedRun,
     errorMsg,
     infoMsg,
+    childAgentsBySession,
+    api,
     initializeWorkspace,
     createNewSession,
     sendMessage,

@@ -9,6 +9,10 @@ from .builtin.fs_list import build_list_dir_definition
 from .builtin.fs_write import build_write_file_tool_definition
 from .builtin.fs_search import build_search_text_definition
 from .builtin.web_search import build_web_search_tool_definition
+from .builtin.spawn_child_agent import build_spawn_child_agent_tool
+from .builtin.check_child_status import build_check_child_status_tool
+from .builtin.wait_child_agent import build_wait_child_agent_tool
+
 
 class ToolRegistry:  # 工具注册中心
     def __init__(self) -> None:
@@ -86,5 +90,12 @@ def build_default_tool_registry() -> ToolRegistry:
     registry.register(build_web_search_tool_definition())
     return registry
 
+def build_run_registry(parent_run_id:str, session_id:str, executor, futures:dict) -> ToolRegistry:
+    from .builtin.spawn_child_agent import build_spawn_child_agent_tool
+    registry = build_default_tool_registry()
+    registry.register(build_spawn_child_agent_tool(parent_run_id, session_id, executor, futures))
+    registry.register(build_check_child_status_tool(futures))
+    registry.register(build_wait_child_agent_tool(futures))
+    return registry
 
 DEFAULT_TOOL_REGISTRY = build_default_tool_registry()  # 默认注册中心

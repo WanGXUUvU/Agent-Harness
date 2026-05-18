@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import type { SessionSummary } from '../types';
+import type { SessionSummary, ChildAgentInfo } from '../types';
 
 const props = defineProps<{
   sessions: SessionSummary[];
   activeId: string | null;
+  childAgentsBySession?: Record<string, ChildAgentInfo[]>;
 }>();
 
 const emit = defineEmits<{
@@ -12,6 +13,7 @@ const emit = defineEmits<{
   (e: 'new'): void;
   (e: 'delete', id: string): void;
   (e: 'rename', id: string, name: string): void;
+  (e: 'open-child-agent', info: ChildAgentInfo): void;
 }>();
 
 const editingId = ref<string | null>(null);
@@ -63,6 +65,14 @@ const getSessionTitle = (session: SessionSummary) => {
 const getSessionId = (session: SessionSummary) => {
   return '#' + session.session_id.slice(0, 8);
 };
+
+// 每个子 Agent 用固定颜色（按 index 循环）
+const CHILD_COLORS = ['#7c8ff7', '#f7a07c', '#7cf7b4', '#f7e07c', '#d07cf7', '#7cd4f7'];
+const getChildColor = (idx: number) => CHILD_COLORS[idx % CHILD_COLORS.length];
+
+const getChildrenForSession = (sessionId: string): ChildAgentInfo[] => {
+  return props.childAgentsBySession?.[sessionId] ?? [];
+};
 </script>
 
 <template>
@@ -87,9 +97,11 @@ const getSessionId = (session: SessionSummary) => {
         </svg>
         <div class="mono-label" style="color: var(--text-muted); font-size: 10px;">NO SESSIONS YET</div>
       </div>
-      <div 
-        v-for="(session, idx) in filteredSessions" 
+      <template
+        v-for="(session, idx) in filteredSessions"
         :key="session.session_id"
+      >
+      <div 
         class="session-item"
         :class="{ active: activeId === session.session_id }"
         :style="{ animationDelay: `${idx * 30}ms` }"
@@ -124,6 +136,24 @@ const getSessionId = (session: SessionSummary) => {
           </button>
         </div>
       </div>
+
+      <!-- 子 Agent 列表，仅在 active session 且有子 Agent 时展示 -->
+      <template v-if="activeId === session.session_id && getChildrenForSession(session.session_id).length > 0">
+        <div
+          v-for="(child, cidx) in getChildrenForSession(session.session_id)"
+          :key="child.run_id"
+          class="child-agent-item"
+          @click.stop="$emit('open-child-agent', child)"
+        >
+          <span class="child-connector">└</span>
+          <span class="child-dot" :style="{ background: getChildColor(cidx) }"></span>
+          <span class="child-name" :style="{ color: getChildColor(cidx) }">{{ child.agent_name }}</span>
+          <span v-if="child.status === 'running'" class="child-spinner"></span>
+          <span v-else-if="child.status === 'done'" class="child-status-icon">✓</span>
+          <span v-else-if="child.status === 'error'" class="child-status-icon error">✗</span>
+        </div>
+      </template>
+      </template>
     </div>
   </aside>
 </template>
@@ -313,5 +343,99 @@ const getSessionId = (session: SessionSummary) => {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* 子 Agent 条目 */
+.child-agent-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 16px 5px 24px;
+  cursor: pointer;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-dim);
+  transition: background 0.15s;
+}
+.child-agent-item:hover { background: var(--bg-hover); }
+.child-connector { color: var(--text-muted); font-size: 12px; }
+.child-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.child-name { flex: 1; font-weight: 500; }
+.child-status-icon { font-size: 11px; color: var(--text-muted); }
+.child-status-icon.error { color: var(--danger, #ff453a); }
+
+/* 转圈动画 */
+@keyframes spin { to { transform: rotate(360deg); } }
+.child-spinner {
+  display: inline-block;
+  width: 11px; height: 11px;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  border-top-color: var(--accent, #7c8ff7);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+.child-spinner.large { width: 20px; height: 20px; border-width: 2px; }
+
+/* 结果弹窗 */
+.child-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.child-modal {
+  background: var(--bg-primary, #1a1a2e);
+  border: 1px solid var(--border-dim);
+  border-radius: 10px;
+  width: 480px;
+  max-width: 90vw;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.child-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-dim);
+}
+.child-modal-title { font-size: 14px; font-weight: 600; flex: 1; color: var(--text-primary); }
+.child-modal-status {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+.child-modal-status.done { color: #7cf7b4; background: rgba(124,247,180,0.1); }
+.child-modal-status.error { color: #ff453a; background: rgba(255,69,58,0.1); }
+.child-modal-status.running { color: var(--accent, #7c8ff7); background: rgba(124,143,247,0.1); }
+.child-modal-close {
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 14px; padding: 4px;
+}
+.child-modal-body {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+.child-modal-reply {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}
+.child-modal-error { color: var(--danger, #ff453a); font-size: 13px; }
+.child-modal-running {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
 }
 </style>

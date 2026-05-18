@@ -36,6 +36,27 @@ const truncate = (s: string | null | undefined, max = 80) => {
   const oneLine = s.replace(/\n/g, ' ');
   return oneLine.length > max ? oneLine.slice(0, max) + '…' : oneLine;
 };
+
+// 判断是否是 spawn_child_agent 的派发事件
+const isSpawnEvent = (event: AgentEvent) =>
+  event.type === 'tool_result' && event.tool_name === 'spawn_child_agent' && event.tool_result?.ok;
+
+// 从 spawn 事件提取 agent_name 和 run_id
+const getSpawnInfo = (event: AgentEvent) => ({
+  agent_name: (event.tool_result?.metadata?.agent_name as string) ?? '子Agent',
+  run_id: event.tool_result?.content ?? '',
+});
+
+// 子 Agent 颜色（按事件顺序分配）
+const SPAWN_COLORS = ['#7c8ff7', '#f7a07c', '#7cf7b4', '#f7e07c', '#d07cf7', '#7cd4f7'];
+const spawnEventIndices: Record<number, number> = {};  // event.index → color index
+let spawnCounter = 0;
+const getSpawnColor = (eventIndex: number) => {
+  if (!(eventIndex in spawnEventIndices)) {
+    spawnEventIndices[eventIndex] = spawnCounter++;
+  }
+  return SPAWN_COLORS[spawnEventIndices[eventIndex] % SPAWN_COLORS.length];
+};
 </script>
 
 <template>
@@ -54,18 +75,29 @@ const truncate = (s: string | null | undefined, max = 80) => {
     <!-- 事件列表，用 CSS max-height 做弹簧动画 -->
     <div class="trace-body" :class="{ open: expanded }">
       <div class="trace-events">
-        <div
-          v-for="event in events"
-          :key="event.index"
-          class="trace-event"
-          :class="`event-${event.type}`"
-        >
-          <span class="event-icon">{{ eventIcon(event) }}</span>
-          <span class="event-label mono-label">{{ eventLabel(event) }}</span>
-          <span v-if="event.content" class="event-content">
-            {{ truncate(event.content) }}
-          </span>
-        </div>
+        <template v-for="event in events" :key="event.index">
+          <!-- spawn_child_agent 专属卡片 -->
+          <div v-if="isSpawnEvent(event)" class="spawn-card" :style="{ borderLeftColor: getSpawnColor(event.index) }">
+            <span class="spawn-icon">🤖</span>
+            <div class="spawn-info">
+              <span class="spawn-agent-name" :style="{ color: getSpawnColor(event.index) }">{{ getSpawnInfo(event).agent_name }}</span>
+              <span class="spawn-label mono-label">已派发子任务</span>
+            </div>
+            <span class="spawn-id mono-label">#{{ getSpawnInfo(event).run_id.slice(0, 8) }}</span>
+          </div>
+          <!-- 普通事件行 -->
+          <div
+            v-else
+            class="trace-event"
+            :class="`event-${event.type}`"
+          >
+            <span class="event-icon">{{ eventIcon(event) }}</span>
+            <span class="event-label mono-label">{{ eventLabel(event) }}</span>
+            <span v-if="event.content" class="event-content">
+              {{ truncate(event.content) }}
+            </span>
+          </div>
+        </template>
       </div>
     </div>
   </div>
@@ -206,4 +238,20 @@ const truncate = (s: string | null | undefined, max = 80) => {
   border-left: 2px solid var(--text-muted);
   padding-left: 10px;
 }
+
+/* spawn_child_agent 专属卡片 */
+.spawn-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-left: 3px solid;
+  background: rgba(124, 143, 247, 0.06);
+  margin: 2px 0;
+}
+.spawn-icon { font-size: 14px; }
+.spawn-info { display: flex; flex-direction: column; gap: 1px; flex: 1; }
+.spawn-agent-name { font-size: 12px; font-weight: 600; }
+.spawn-label { font-size: 10px; color: var(--text-muted); }
+.spawn-id { font-size: 10px; color: var(--text-muted); opacity: 0.7; }
 </style>

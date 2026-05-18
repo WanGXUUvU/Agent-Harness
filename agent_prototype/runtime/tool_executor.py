@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional,AsyncIterator,Union
 import asyncio
 
 from ..core.schemas import AgentEvent, ChatMessage, ToolCall
@@ -97,22 +97,19 @@ async def async_handle_tool_calls(
     event_index: int,
     on_tool_start=None,
     on_tool_finish=None,
-) -> ToolTurnResult:
-    """处理一轮模型返回的 tool calls。"""
+) -> AsyncIterator[Union[AgentEvent, ToolTurnResult]]:
+    """处理一轮模型返回的 tool calls。 AsyncIterator 是告诉类型检查器"这个函数会逐条产出 AgentEvent 或 ToolTurnResult"""
 
-    events: list[AgentEvent] = []
     tool_messages: list[ChatMessage] = []
     current_index = event_index
 
     for tool_call in tool_calls:
-        events.append(
-            AgentEvent(
-                index=current_index,
-                type="assistant_tool_call",
-                tool_name=tool_call.function.name,
-                tool_call_id=tool_call.id,
-                content=tool_call.function.arguments,
-            )
+        yield AgentEvent(
+            index=current_index,
+            type="assistant_tool_call",
+            tool_name=tool_call.function.name,
+            tool_call_id=tool_call.id,
+            content=tool_call.function.arguments,
         )
         current_index += 1
 
@@ -126,7 +123,7 @@ async def async_handle_tool_calls(
                 tool_call.id,
                 tool_call.function.arguments,
             )
-        TOOL_TIMEOUT=30
+        TOOL_TIMEOUT=120
         try:
         #asyncio.to_thread 的意思是：把这个同步函数丢到另一个线程去跑，主线程不等它，事件循环继续转。
             tool_result = await asyncio.wait_for(
@@ -152,13 +149,13 @@ async def async_handle_tool_calls(
 
         if tool_result is None:
             error_message = f"Tool timed out after {TOOL_TIMEOUT}s"
-            events.append(AgentEvent(
+            yield AgentEvent(
                 index=current_index,
                 type="tool_error",
                 tool_name=tool_call.function.name,
                 tool_call_id=tool_call.id,
                 content=error_message,
-            ))
+            )
             tool_message = ChatMessage(
                 role="tool",
                 tool_call_id=tool_call.id,
@@ -170,8 +167,7 @@ async def async_handle_tool_calls(
 
 
         if tool_result.ok:
-            events.append(
-                AgentEvent(
+            yield AgentEvent(
                     index=current_index,
                     type="tool_result",
                     tool_name=tool_call.function.name,
@@ -179,7 +175,6 @@ async def async_handle_tool_calls(
                     content=tool_result.content,
                     tool_result=tool_result,
                 )
-            )
 
             tool_message = ChatMessage(
                 role="tool",
@@ -188,8 +183,7 @@ async def async_handle_tool_calls(
             )
         else:
             error_message = tool_result.error.message if tool_result.error else "Tool failed"
-            events.append(
-                AgentEvent(
+            yield AgentEvent(
                     index=current_index,
                     type="tool_error",
                     tool_name=tool_call.function.name,
@@ -197,7 +191,6 @@ async def async_handle_tool_calls(
                     content=error_message,
                     tool_result=tool_result,
                 )
-            )
             tool_message = ChatMessage(
                 role="tool",
                 tool_call_id=tool_call.id,
@@ -206,8 +199,8 @@ async def async_handle_tool_calls(
         current_index += 1
         tool_messages.append(tool_message)
 
-    return ToolTurnResult(
-        events=events,
+    yield ToolTurnResult(
+        events=[],
         tool_messages=tool_messages,
         next_event_index=current_index,
     )

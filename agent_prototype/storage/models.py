@@ -44,6 +44,7 @@ class SessionRunRecord(Base):
         index=True,
         nullable=False,
     )
+    parent_run_id = Column(String,ForeignKey("session_runs.run_id",ondelete="SET NULL"),nullable=True,index=True)
     run_id = Column(String, unique=True, nullable=False)
     run_status = Column(String,nullable=False,default="running")
     agent_name = Column(String, nullable=True, index=True)
@@ -52,7 +53,7 @@ class SessionRunRecord(Base):
     reply = Column(Text, nullable=False)
     event_count = Column(Integer, nullable=False, default=0, server_default="0")
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    finished_at = Column(DateTime, server_default=func.now(), nullable=False)
+    finished_at = Column(DateTime,nullable=True)
 
     # `relationship()` 让 SQLAlchemy 知道父子表之间的对象关系。
     events = relationship(
@@ -73,7 +74,7 @@ class ToolCallRecord(Base):
     result_json = Column(Text, nullable=True)       # 工具结果
     started_at = Column(DateTime, server_default=func.now(), nullable=False)
     finished_at = Column(DateTime, nullable=True)   # 执行完才有
-    
+
 class SessionRunEventRecord(Base):
     """单次 run 下的逐条事件表。"""
 

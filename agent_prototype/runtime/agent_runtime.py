@@ -18,7 +18,7 @@ from ..model.adapter import ModelAdapter
 from ..tools.tool_registry import DEFAULT_TOOL_REGISTRY, ToolRegistry
 from .message_builder import build_model_request
 from .response_handler import build_final_turn
-from .tool_executor import handle_tool_calls,async_handle_tool_calls
+from .tool_executor import handle_tool_calls, async_handle_tool_calls, ToolTurnResult
 
 class Agent:
 
@@ -223,16 +223,22 @@ class Agent:
                     role="assistant",
                     tool_calls=tool_calls,
                 ))
-                tool_turn = await async_handle_tool_calls(
+                tool_turn=None
+                #每次循环拿到一条产出物。是 AgentEvent 就立刻转发，是 ToolTurnResult 就保存下来取 messages 用
+                async for item in async_handle_tool_calls(
                     self.tool_registry,
                     tool_calls,
                     self.allow_tool_names,
                     event_index,
                     on_tool_start=on_tool_start,
                     on_tool_finish=on_tool_finish,
-                )
-                for event in tool_turn.events:
-                    yield event
+                ):
+                    if isinstance(item,AgentEvent):
+                        yield item
+                    else:
+                        tool_turn = item
+                if tool_turn.next_event_index is None:
+                    raise RuntimeError("tool turn miss result")
                 event_index = tool_turn.next_event_index
                 for tool_message in tool_turn.tool_messages:
                     self.state.messages.append(tool_message)

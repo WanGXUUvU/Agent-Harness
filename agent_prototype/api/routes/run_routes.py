@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status  # 导入路由、依赖和状态
 from sqlalchemy.orm import Session  # 导入数据库会话
 from fastapi.responses import StreamingResponse
 from ...core.schemas import AgentInput, AgentOutput, CompactInput, CompactOutput, ResetInput,FinalizeRunInput,RunDetailResponse,ToolCallSummary  # 导入请求响应模型
-from ...application.run_service import run_agent_service,async_stream_agent_service,finalize_run_service,get_run_detail_service # /run 主链路服务
+from ...application.run_service import run_agent_service,async_stream_agent_service,finalize_run_service,get_run_detail_service,_global_futures # /run 主链路服务
 from ...application.compact_service import compact_session_service  # /compact 独立服务
 from ...application.session_service import reset_session_service  # /reset 独立服务
 from ...storage.db import get_db  # 导入数据库依赖
@@ -79,3 +79,19 @@ def get_run_detail_api(session_id: str, run_id: str, db: Session = Depends(get_d
             for tc in tool_calls
         ],
     )
+
+
+@router.get("/child-runs/{run_id}")
+def get_child_run_status_api(run_id: str):
+    """输入：child_run_id。输出：子 Agent 状态（running/done/error）和结果。纯内存，重启后消失。"""
+    future = _global_futures.get(run_id)
+    if future is None:
+        return {"status": "not_found", "reply": None, "error": None}
+    if not future.done():
+        return {"status": "running", "reply": None, "error": None}
+    exc = future.exception()
+    if exc:
+        return {"status": "error", "reply": None, "error": str(exc)}
+    result = future.result()
+    del _global_futures[run_id]
+    return {"status": "done", "reply": result.reply, "error": None}

@@ -11,6 +11,7 @@
 
 import os
 import uuid  # 生成 run_id  # 这一行负责唯一标识
+from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy.orm import Session  # 数据库会话类型  # 这一行负责事务上下文
 from typing import Iterator,Optional,AsyncIterator
 
@@ -22,9 +23,11 @@ from .skill_context_service import build_runtime_definition_with_skills
 from .agent_definition_service import load_agent_definition  # 加载 agent 定义  # 这一行负责 agent 配置
 from .compact_service import _compact_in_memory  # 自动 compact 内存计算  # 这一行把压缩逻辑交给独立文件
 from ..model.openai_adapter import ChatCompletionsAdapter
+from ..tools.tool_registry import build_run_registry
 
 RUN_MODEL = os.getenv("RUN_MODEL", "deepseek-v4-flash")
-
+_executor = ThreadPoolExecutor(max_workers=8)
+_global_futures: dict = {}  # child_run_id → Future，进程级内存，重启清空
 
 def build_reply_preview(reply: str, max_len: int = 120) -> str:
     """输入：完整回复文本、最大长度。输出：单行回复摘要字符串。"""
@@ -95,6 +98,7 @@ def _persist_run_result(
             reply=output.reply,
             events=output.events,
         )
+        db.flush()  # autoflush=False，需手动 flush，让 update_run_status 的 query 能找到刚 add 的记录
         store.update_run_status(run_id=run_id, status="completed")
         db.commit()
     except Exception:
@@ -114,15 +118,14 @@ def run_agent_service(agent_input: AgentInput, db: Session) -> AgentOutput:
 
     store = SqliteSessionStore(db)
     state, runtime_definition, effective_agent_name = _prepare_run_context(agent_input, db)
+    run_id = uuid.uuid4().hex
     agent = Agent(
         state=state,
         definition=runtime_definition,
         allow_tool_names=runtime_definition.tool_names,
         model_adapter=ChatCompletionsAdapter(model=RUN_MODEL),
+        tool_registry=build_run_registry(parent_run_id=run_id, session_id=agent_input.session_id, executor=_executor, futures=_global_futures)
     )
-
-    # `uuid4().hex` 生成 32 位十六进制字符串，适合作为当前 run 的唯一标识。
-    run_id = uuid.uuid4().hex
 
     output = agent.run(agent_input)
     output.state.agent_name = effective_agent_name
@@ -139,13 +142,15 @@ def stream_agent_service(agent_input:AgentInput,db:Session)->Iterator[str]:
 
     store = SqliteSessionStore(db)
     state, runtime_definition, effective_agent_name = _prepare_run_context(agent_input, db)
+    run_id = uuid.uuid4().hex
     agent = Agent(
         state=state,
         definition=runtime_definition,
         allow_tool_names=runtime_definition.tool_names,
         model_adapter=ChatCompletionsAdapter(model=RUN_MODEL),
+        tool_registry=build_run_registry(parent_run_id=run_id, session_id=agent_input.session_id, executor=_executor, futures=_global_futures)
     )
-    run_id = uuid.uuid4().hex
+
     yield _sse_frame(StreamFrame(
         type="start",
         data={"session_id":agent_input.session_id,"run_id":run_id,
@@ -204,7 +209,7 @@ async def async_stream_agent_service(agent_input:AgentInput,db:Session)->AsyncIt
             tool_call_id=tool_call_id,
             input_json=input_json,
         )
-        db.flush()
+        db.commit()  # 立即提交释放写锁，避免 wait_child_agent 阻塞期间子线程被锁住
         return record_id
 
     def on_tool_finish(record_id, status, result_json):
@@ -220,6 +225,7 @@ async def async_stream_agent_service(agent_input:AgentInput,db:Session)->AsyncIt
         definition=runtime_definition,
         allow_tool_names=runtime_definition.tool_names,
         model_adapter=ChatCompletionsAdapter(model=RUN_MODEL),
+        tool_registry=build_run_registry(parent_run_id=run_id, session_id=agent_input.session_id, executor=_executor, futures=_global_futures),
     )
 
     completed=False

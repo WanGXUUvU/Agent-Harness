@@ -139,7 +139,8 @@ class SqliteSessionStore:
             partial_reply:str,
             state:AgentState,
     )->SessionRunRecord:
-        existing  =self.db.query(SessionRecord).filter(SessionRecord.session_id==session_id).first()
+        # 用 run_id 查 run 明细表，防止重复插入同一条 run 记录
+        existing=self.db.query(SessionRunRecord).filter(SessionRunRecord.run_id==run_id).first()
         if existing:
             return existing
         run_record=SessionRunRecord(
@@ -178,10 +179,13 @@ class SqliteSessionStore:
             return False
         run_ids = [r.run_id for r in self.db.query(SessionRunRecord).filter(SessionRunRecord.session_id == session_id).all()]
         for run_id in run_ids:
+            # 删 tool_calls（子 Agent 和主 Agent 的工具调用记录）
+            self.db.query(ToolCallRecord).filter(ToolCallRecord.run_id == run_id).delete()
+            # 删 run events
             self.db.query(SessionRunEventRecord).filter(SessionRunEventRecord.run_id == run_id).delete()
-        # 再删 run
+        # 删所有 runs（含子 Agent runs，它们共享同一个 session_id）
         self.db.query(SessionRunRecord).filter(SessionRunRecord.session_id == session_id).delete()
-        # 最后删 session
+        # 最后删 session 主记录
         self.db.delete(record)
         return True
     def list_run_records(self, session_id: str, run_id: Optional[str] = None) -> list[SessionRunRecord]:
@@ -267,6 +271,8 @@ class SqliteSessionStore:
         record = self.db.query(SessionRunRecord).filter(SessionRunRecord.run_id == run_id).first()
         if record:
             record.run_status = status
+            if status=="completed":
+                record.finished_at=func.now()
 
     def get_run_detail(self, run_id: str):
         run = self.db.query(SessionRunRecord).filter(SessionRunRecord.run_id == run_id).first()
@@ -279,3 +285,54 @@ class SqliteSessionStore:
             .all()
         )
         return run, tool_calls
+    
+    def create_child_run(
+            self,
+            *,
+            parent_run_id:str,
+            session_id:str,
+            run_id:str,
+            agent_name:Optional[str],
+            user_input:str,
+            reply:str,
+            events:list[AgentEvent],
+    )->SessionRunRecord:
+        """输入:parent_run_id:+子run字段。输出:新建的 SessionRunRecord"""
+
+        run_record=SessionRunRecord(
+            session_id=session_id,
+            run_id=run_id,
+            parent_run_id=parent_run_id,
+            agent_name=agent_name,
+            user_input=user_input,
+            reply=reply,
+            event_count=len(events),
+            run_status="completed",  # create_child_run 只在子 Agent 执行完后调用，直接写 completed
+        )
+        self.db.add(run_record)
+
+        for index,event in enumerate(events):
+            event_dict=event.model_dump(exclude_none=True)
+            self.db.add(SessionRunEventRecord(
+                run_id=run_id,
+                event_index=index,
+                type=event_dict["type"],
+                content=event_dict.get("content") or "",
+                tool_name=event_dict.get("tool_name"),
+                tool_call_id=event_dict.get("tool_call_id"),
+                tool_result_json=(
+                    json.dumps(event_dict.get("tool_result"), ensure_ascii=False)
+                    if event_dict.get("tool_result")
+                    else None
+                ),
+            ))
+        return run_record
+    
+    def get_children_runs(self, parent_run_id: str) -> list[SessionRunRecord]:
+        """输入：parent_run_id。输出：所有子 run 记录列表。"""
+        return (
+            self.db.query(SessionRunRecord)
+            .filter(SessionRunRecord.parent_run_id == parent_run_id)
+            .order_by(SessionRunRecord.created_at.asc())
+            .all()
+        )

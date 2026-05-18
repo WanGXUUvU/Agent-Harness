@@ -1,13 +1,13 @@
 # STATUS
 
 ## Current Status
-- Phase: implementation
-- Task: specs/TASK-037.md
-- Gate: implementation
-- Allowed Now: implementation
+- Phase: done
+- Task: specs/TASK-040.md
+- Gate: Verify / Review
+- Allowed Now: next task selection
 - Lane: Fast
 - Blocked: None
-- Next action: Stop 按钮前端实现（abort SSE + finalize 落库 + UI 标记）
+- Next action: 选择下一张任务卡
 
 ## 读取规则
 - `STATUS.md` 是当前唯一权威入口，先看这里再看路线图。
@@ -22,6 +22,8 @@
 
 | Date | Event | Gate / Phase | Notes |
 |------|-------|--------------|-------|
+| 2026-05-18 | 子 Agent 面板 bug 修复 & code review | Verify / Review | 修复 save_partial_run 查错表、_global_futures 内存泄漏、子 Agent 未透传 RUN_MODEL；前端修复 AgentEvent 导入缺失、extractChildAgents 状态硬编码、localStorage 无限增长；子 Agent 最终输出支持 Markdown 渲染，formatContent 提取为共享工具；面板滚动问题修复。 |
+| 2026-05-17 | `TASK-040` 收口 | Verify / Review | 多 Agent 子任务模型完成：parent_run_id 字段+migration、create_child_run/get_children_runs、spawn_child_agent 工具、build_run_registry 动态注册、5个单测全通过。 |
 | 2026-05-14 | `TASK-028` 收口并切换到 `TASK-029` | Verify / Review | 前端完成 fetch+ReadableStream 解析 SSE，实现打字机效果及实时 Trace 面板，完善刷新后的历史统一渲染。 |
 | 2026-05-15 | `TASK-036` 收口并切换到 `TASK-037` | Verify / Review | Session 重命名（画笔内联编辑）+ 删除前后端全链路完成，构建通过，手动验证 ok。 |
 | 2026-05-14 | `TASK-035` 收口并切换到 `TASK-036` | Verify / Review | web_search 工具落地，接入 Tavily API，注册进 DEFAULT_TOOL_REGISTRY，assistant agent tool_names 已加入 web_search，全量测试通过。 |
