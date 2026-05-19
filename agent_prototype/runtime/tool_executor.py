@@ -4,7 +4,13 @@ import asyncio
 
 from ..core.schemas import AgentEvent, ChatMessage, ToolCall
 from ..tools.tool_registry import ToolRegistry
+from concurrent.futures import ThreadPoolExecutor
 
+# 模块级，只创建一次，整个进程共用这一个池
+_tool_thread_pool = ThreadPoolExecutor(
+    max_workers=16,                    # 最多同时 16 个工具在跑，超时泄漏的线程也被限在 16 个以内
+    thread_name_prefix="tool_worker",  # 调试时 ps/top 里能看到线程名，方便排查
+)
 
 @dataclass
 class ToolTurnResult:
@@ -126,11 +132,22 @@ async def async_handle_tool_calls(
         TOOL_TIMEOUT=120
         try:
         #asyncio.to_thread 的意思是：把这个同步函数丢到另一个线程去跑，主线程不等它，事件循环继续转。
+            # tool_result = await asyncio.wait_for(
+            #     asyncio.to_thread(
+            #     tool_registry.execute_tool_call,
+            #     tool_call.function.name,
+            #     tool_call.function.arguments,
+            #     ),
+            #     timeout=TOOL_TIMEOUT,
+            # )
+            #两者功能完全一样，区别只是线程池是谁的。
+            loop = asyncio.get_event_loop()   # 拿到当前的事件循环对象
             tool_result = await asyncio.wait_for(
-                asyncio.to_thread(
-                tool_registry.execute_tool_call,
-                tool_call.function.name,
-                tool_call.function.arguments,
+                loop.run_in_executor(
+                    _tool_thread_pool,            # ← 指定用我们自己的池
+                    tool_registry.execute_tool_call,
+                    tool_call.function.name,
+                    tool_call.function.arguments,
                 ),
                 timeout=TOOL_TIMEOUT,
             )
@@ -139,7 +156,11 @@ async def async_handle_tool_calls(
         except asyncio.TimeoutError:
             tool_result=None
             finish_status="timeout"
-        
+
+        except Exception:
+            tool_result=None
+            finish_status="failed"
+
         if on_tool_finish and record_id is not None:
             on_tool_finish(
                 record_id,

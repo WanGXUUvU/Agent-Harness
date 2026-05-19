@@ -5,7 +5,10 @@ import json
 def build_check_child_status_tool(futures:dict)->ToolDefinition:
 
     def check_child_status(child_run_ids:str)->ToolResult:
-        ids=json.loads(child_run_ids)# "[\"aaa\",\"bbb\"]" → ["aaa", "bbb"]
+        try:
+            ids=json.loads(child_run_ids)# "[\"aaa\",\"bbb\"]" → ["aaa", "bbb"]
+        except json.JSONDecodeError as exc:
+            return ToolResult(ok=False,content=f"Invalid JSON :{exc}")
         
         result={}
 

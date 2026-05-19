@@ -177,14 +177,14 @@ class SqliteSessionStore:
         record = self.db.query(SessionRecord).filter(SessionRecord.session_id == session_id).first()
         if not record:
             return False
-        run_ids = [r.run_id for r in self.db.query(SessionRunRecord).filter(SessionRunRecord.session_id == session_id).all()]
-        for run_id in run_ids:
-            # 删 tool_calls（子 Agent 和主 Agent 的工具调用记录）
-            self.db.query(ToolCallRecord).filter(ToolCallRecord.run_id == run_id).delete()
-            # 删 run events
-            self.db.query(SessionRunEventRecord).filter(SessionRunEventRecord.run_id == run_id).delete()
-        # 删所有 runs（含子 Agent runs，它们共享同一个 session_id）
-        self.db.query(SessionRunRecord).filter(SessionRunRecord.session_id == session_id).delete()
+        run_id_subq = (
+            self.db.query(SessionRunRecord.run_id)
+            .filter(SessionRunRecord.session_id == session_id)
+            .subquery()
+        )
+        self.db.query(ToolCallRecord).filter(ToolCallRecord.run_id.in_(run_id_subq)).delete(synchronize_session=False)
+        self.db.query(SessionRunEventRecord).filter(SessionRunEventRecord.run_id.in_(run_id_subq)).delete(synchronize_session=False)
+        self.db.query(SessionRunRecord).filter(SessionRunRecord.session_id == session_id).delete(synchronize_session=False)
         # 最后删 session 主记录
         self.db.delete(record)
         return True

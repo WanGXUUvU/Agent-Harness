@@ -1,13 +1,16 @@
 from pathlib import Path
 from typing import Optional
-
+import time as _time
 from ..core.schemas import SkillSummary
 from . import skill_config as _skill_config
 from .skill_config import (
     DEFAULT_PROTECTED_SKILL_NAMES,
     SkillConfig,
 )
-
+# 模块级变量 —— 进程启动时只创建一次，相当于"全局内存格子"
+_list_skills_cache:Optional[list]=None
+_list_skills_cache_ts:float=0.0
+_LIST_SKILLS_TTL=30
 
 def get_default_skill_config_path() -> Path:
     return _skill_config.get_default_skill_config_path()
@@ -46,6 +49,14 @@ def list_skills(
     config_path: Optional[Path] = None,
 ) -> list[SkillSummary]:
     """输入：可选的 skill 根目录列表、可选的配置文件路径。输出：合并启用状态后的 SkillSummary 列表。"""
+    global _list_skills_cache, _list_skills_cache_ts
+    # ↑ 声明"我要修改模块级变量"，不写 global 的话 Python 会把赋值当成局部变量
+    use_cache=skill_roots is None and config_path is None
+    # ↑ 只有用默认参数调用时才走缓存；传了自定义路径的调用跳过缓存
+    if use_cache:
+        now=_time.monotonic()# ↑ monotonic() = 单调递增的时钟，只用来算时间差，不受系统时间调整影响
+        if _list_skills_cache is not None and now - _list_skills_cache_ts < _LIST_SKILLS_TTL:
+            return _list_skills_cache
     roots = skill_roots or get_default_skill_roots()  # 没传目录时，使用默认 skill 扫描目录
     if config_path is not None or skill_roots is None:
         config = load_skill_config(config_path)  # 先读取 skill 配置，拿到 disabled 名单
@@ -61,10 +72,15 @@ def list_skills(
             summary = _load_skill_summary(skill_file, source_name, root_path)  # 先按原逻辑解析出一个 SkillSummary
             if summary.enabled and is_skill_disabled(summary.name, config):
                 summary = summary.model_copy(update={"enabled": False})  # 命中 disabled 名单时，把 enabled 改成 False
-
             results.append(summary)  # 逐个读取摘要
 
-    return sorted(results, key=lambda item: item.name.lower())
+    result = sorted(results, key=lambda item: item.name.lower())
+
+    if use_cache:
+        _list_skills_cache = result
+        _list_skills_cache_ts = _time.monotonic()
+
+    return result
 
 
 def _load_skill_summary(skill_file: Path, source_name: str, root_path: Path) -> SkillSummary:

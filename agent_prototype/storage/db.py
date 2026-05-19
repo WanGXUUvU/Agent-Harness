@@ -14,6 +14,7 @@ engine=create_engine(
 @event.listens_for(engine, "connect")
 def set_wal_mode(dbapi_conn, connection_record):
     dbapi_conn.execute("PRAGMA journal_mode=WAL")
+    dbapi_conn.execute("PRAGMA synchronous=NORMAL")  # WAL 下 NORMAL 已足够安全，写入更快
 
 SessionLocal=sessionmaker(
     autoflush=False,

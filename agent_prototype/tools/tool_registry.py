@@ -18,6 +18,13 @@ class ToolRegistry:  # 工具注册中心
     def __init__(self) -> None:
         """输入：无。输出：初始化后的 ToolRegistry 实例。"""
         self._tools: dict[str, ToolDefinition] = {}  # 用名字保存所有工具
+
+    def clone(self)->"ToolRegistry":
+        
+        new = ToolRegistry()
+        new._tools=dict(self._tools)
+        return new
+    
     #注册时会把完整的ToolDefiniton注册进去
     def register(self, tool: ToolDefinition) -> None:
         """输入：一个 ToolDefinition。输出：无，副作用是把工具注册进内存字典。"""
@@ -92,7 +99,7 @@ def build_default_tool_registry() -> ToolRegistry:
 
 def build_run_registry(parent_run_id:str, session_id:str, executor, futures:dict) -> ToolRegistry:
     from .builtin.spawn_child_agent import build_spawn_child_agent_tool
-    registry = build_default_tool_registry()
+    registry = DEFAULT_TOOL_REGISTRY.clone()
     registry.register(build_spawn_child_agent_tool(parent_run_id, session_id, executor, futures))
     registry.register(build_check_child_status_tool(futures))
     registry.register(build_wait_child_agent_tool(futures))
