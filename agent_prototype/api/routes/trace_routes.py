@@ -19,7 +19,9 @@ import json  # 解析 JSON 字符串
 from typing import Optional  # 可选参数
 from fastapi import APIRouter, Depends, status  # 导入路由、依赖和状态码
 from sqlalchemy.orm import Session  # 导入数据库会话
-from agent_prototype.api.dto.schemas import AgentEvent, ToolResult, TraceResponse, TraceRunSummary  # 导入 schema
+from agent_prototype.model.types.agent import AgentEvent
+from agent_prototype.model.types.domain import ToolResult
+from agent_prototype.api.dto.schemas import TraceResponse, TraceRunSummary  # 导入 schema
 from agent_prototype.infra.db.engine import get_db  # 导入数据库依赖
 from agent_prototype.memory.session.store import SqliteSessionStore  # 导入 session store
 from agent_prototype.api.routes.dependencies import error_response  # 导入统一错误响应

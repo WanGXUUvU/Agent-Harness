@@ -8,7 +8,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from agent_prototype.agent.definition import AgentDefinition
-from agent_prototype.api.dto.schemas import AgentState, ChatMessage, SkillSummary, ToolCall, ToolCallFunction
+from agent_prototype.model.types.agent import AgentState
+from agent_prototype.model.types.domain import ChatMessage, ToolCall, ToolCallFunction
+from agent_prototype.skills.types import SkillSummary
 from agent_prototype.model.types.model_types import ModelResponse
 from agent_prototype.memory.session.store import SqliteSessionStore
 from agent_prototype.agent.definition_store import SqliteAgentDefinitionStore

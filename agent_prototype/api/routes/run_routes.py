@@ -19,7 +19,8 @@
 from fastapi import APIRouter, Depends, status  # 导入路由、依赖和状态码
 from sqlalchemy.orm import Session  # 导入数据库会话
 from fastapi.responses import StreamingResponse
-from agent_prototype.api.dto.schemas import AgentInput, AgentOutput, ResetInput, FinalizeRunInput, RunDetailResponse, ToolCallSummary  # 导入请求响应模型
+from agent_prototype.model.types.agent import AgentInput, AgentOutput, FinalizeRunInput
+from agent_prototype.api.dto.schemas import ResetInput, RunDetailResponse, ToolCallSummary  # 导入请求响应模型
 from agent_prototype.execution.persistence.run_service import RunService
 from agent_prototype.execution.runtime.agent_executor import _global_futures  # 导入全新的 RunService
 from agent_prototype.memory.session.service import SessionService  # 导入全新的 SessionService

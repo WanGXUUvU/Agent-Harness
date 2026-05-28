@@ -21,9 +21,9 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import AsyncIterator, Optional, Union
 # ── 本地模块 ──────────────────────────────────────────────────────────────────
-from agent_prototype.api.dto.schemas import (
-    AgentEvent, ApprovalPolicy, ChatMessage, RiskLevel, ToolCall, ToolResult, needs_approval
-)
+from agent_prototype.model.types.agent import AgentEvent
+from agent_prototype.model.types.domain import ChatMessage, RiskLevel, ToolCall, ToolResult
+from agent_prototype.security.policy import ApprovalPolicy, needs_approval
 from agent_prototype.tools.registry import ToolRegistry
 from agent_prototype.security.middleware.base import MiddlewarePipeline
 from agent_prototype.security.middleware.base import ToolCallContext

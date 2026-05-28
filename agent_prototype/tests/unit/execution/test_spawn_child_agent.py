@@ -16,7 +16,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from agent_prototype.infra.db.orm_models import ModelSetting, ProviderConfig
-from agent_prototype.api.dto.schemas import AgentOutput, AgentState, AgentEvent, RunMetadata
+from agent_prototype.model.types.agent import AgentOutput, AgentState, AgentEvent, RunMetadata
 from agent_prototype.infra.db.engine import Base
 from agent_prototype.memory.session.store import SqliteSessionStore
 from agent_prototype.tools.registry import build_run_registry

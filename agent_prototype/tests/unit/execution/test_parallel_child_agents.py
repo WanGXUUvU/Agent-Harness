@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from agent_prototype.api.dto.schemas import AgentOutput, AgentState, AgentEvent, RunMetadata
+from agent_prototype.model.types.agent import AgentOutput, AgentState, AgentEvent, RunMetadata
 from agent_prototype.infra.db.engine import Base
 from agent_prototype.tools.registry import build_run_registry
 from agent_prototype.execution.persistence.run_service import RunService

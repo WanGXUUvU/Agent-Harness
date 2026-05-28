@@ -14,9 +14,10 @@ from typing import AsyncIterator, List
 
 # ── 本地模块 ──────────────────────────────────────────────────────────────────
 from agent_prototype.model.types.model_types import ModelStreamEvent
-from agent_prototype.api.dto.schemas import (
-    AgentEvent, AgentInput, AgentOutput, RunMetadata, StreamFrame,
+from agent_prototype.model.types.agent import (
+    AgentEvent, AgentInput, AgentOutput, RunMetadata,
 )
+from agent_prototype.execution.streaming.types import StreamFrame
 from agent_prototype.execution.streaming.sse import _sse_frame
 from agent_prototype.execution.runtime.agent_runtime import AgentRunner
 from agent_prototype.observation.hooks.tool_run_observer import ToolRunObserver

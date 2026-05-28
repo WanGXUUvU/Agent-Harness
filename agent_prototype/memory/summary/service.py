@@ -14,7 +14,9 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from agent_prototype.infra.db.orm_models import SessionRecord, ModelSetting, ProviderConfig
-from agent_prototype.api.dto.schemas import AgentState, CompactInput, CompactOutput, ChatMessage
+from agent_prototype.model.types.agent import AgentState
+from agent_prototype.model.types.domain import ChatMessage
+from agent_prototype.api.dto.schemas import CompactInput, CompactOutput
 from agent_prototype.memory.session.store import SqliteSessionStore
 from agent_prototype.context.compaction import (
     build_compact_prompt,

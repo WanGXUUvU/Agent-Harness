@@ -13,12 +13,12 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from agent_prototype.api.dto.schemas import (
+from agent_prototype.security.policy import (
     ApprovalPolicy,
-    CreateSessionInput,
     PermissionProfile,
     SandboxMode,
 )
+from agent_prototype.api.dto.schemas import CreateSessionInput
 from agent_prototype.memory.session.service import (
     PROFILES,
     SessionService,

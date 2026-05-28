@@ -15,7 +15,8 @@ from typing import Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from agent_prototype.model.types.model_types import ModelUsage
-from agent_prototype.api.dto.schemas import AgentEvent, AgentState,ChatMessage
+from agent_prototype.model.types.agent import AgentEvent, AgentState
+from agent_prototype.model.types.domain import ChatMessage
 from agent_prototype.infra.db.orm_models import SessionRecord, SessionRunEventRecord, SessionRunRecord, ToolCallRecord
 
 _UNSET=object()

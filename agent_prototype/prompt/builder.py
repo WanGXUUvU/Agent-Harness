@@ -12,7 +12,7 @@
 import os
 from pathlib import Path
 from typing import Optional
-from agent_prototype.api.dto.schemas import SkillSummary
+from agent_prototype.skills.types import SkillSummary
 
 def build_skill_catalog_prompt(skills: list[SkillSummary]) -> str:  # 把 skill 摘要列表拼成给模型看的目录文本
     """输入：SkillSummary 列表。输出：只包含启用 skill 摘要的目录文本。"""

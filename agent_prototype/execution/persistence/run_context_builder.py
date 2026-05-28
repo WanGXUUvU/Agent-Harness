@@ -18,7 +18,8 @@ from agent_prototype.security.policy import PROFILES
 from agent_prototype.infra.db.orm_models import ModelSetting, ProviderConfig, SessionRecord
 from agent_prototype.memory.session.store import SqliteSessionStore
 from agent_prototype.model.adapters.chat_completions import ChatCompletionsAdapter
-from agent_prototype.api.dto.schemas import AgentInput, AgentState, ApprovalPolicy
+from agent_prototype.model.types.agent import AgentInput, AgentState
+from agent_prototype.security.policy import ApprovalPolicy
 from agent_prototype.agent.definition import AgentDefinition
 from agent_prototype.agent.definition_service import AgentDefinitionService
 from agent_prototype.memory.summary.service import CompactService

@@ -9,11 +9,11 @@ from typing import AsyncIterator, Iterator, Optional, Union
 
 # ── 本地模块 ──────────────────────────────────────────────────────────────────
 from agent_prototype.agent.definition import AgentDefinition, DEFAULT_AGENT_DEFINITION
-from agent_prototype.api.dto.schemas import (
-    AgentEvent, AgentInput, AgentOutput, AgentState,
-    ApprovalPolicy, ChatMessage, RunMetadata,
-    ToolCall, ToolCallFunction,
+from agent_prototype.model.types.agent import (
+    AgentEvent, AgentInput, AgentOutput, AgentState, RunMetadata,
 )
+from agent_prototype.model.types.domain import ChatMessage, ToolCall, ToolCallFunction
+from agent_prototype.security.policy import ApprovalPolicy
 from agent_prototype.model.adapters.protocol import ModelAdapter
 from agent_prototype.model.types.model_types import ModelStreamEvent
 from agent_prototype.tools.registry import DEFAULT_TOOL_REGISTRY, ToolRegistry

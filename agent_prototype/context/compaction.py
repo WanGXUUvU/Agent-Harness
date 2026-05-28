@@ -11,7 +11,8 @@
 """
 from typing import Optional
 from agent_prototype.model.types.domain import ChatMessage
-from agent_prototype.api.dto.schemas import AgentState, CompactOutput
+from agent_prototype.model.types.agent import AgentState
+from agent_prototype.api.dto.schemas import CompactOutput
 from agent_prototype.model.adapters.protocol import ModelAdapter
 from agent_prototype.model.types.model_types import ModelRequest, ModelConfig
 

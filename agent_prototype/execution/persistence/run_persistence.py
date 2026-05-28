@@ -13,7 +13,8 @@ from sqlalchemy.orm import Session
 
 from agent_prototype.memory.session.store import SqliteSessionStore
 from agent_prototype.model.types.model_types import ModelUsage
-from agent_prototype.api.dto.schemas import AgentInput, AgentOutput, AgentState, ChatMessage, RunMetadata
+from agent_prototype.model.types.agent import AgentInput, AgentOutput, AgentState, RunMetadata
+from agent_prototype.model.types.domain import ChatMessage
 from agent_prototype.execution.streaming.sse import build_reply_preview
 
 

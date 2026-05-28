@@ -2,13 +2,12 @@
 
 ## Current Status
 - Phase: complete
-- Task: specs/TASK-078-architecture-decoupling-and-cleanup.md (整体架构深度解耦与九层模型边界彻底清洗)
+- Task: specs/TASK-079-domain-type-relocation.md (领域类型归位：消除 api/dto/schemas 充当全局类型中心的违规)
 - Gate: Verify / Review
 - Allowed Now: review / coach
 - Lane: Fast
 - Blocked: None
-- Next action: TASK-078 architectural refactoring has been 100% completed. All 96 unit/integration tests are completely green. Waiting for the next task or code review.
-
+- Next action: TASK-079 领域类型归位完成。AgentState/AgentEvent/AgentInput/AgentOutput/RunMetadata/FinalizeRunInput 归位至 model.types.agent；SkillSummary 归位至 skills.types；StreamFrame 归位至 execution.streaming.types。22 处违规 import 已全部迁至低层模块。api/dto/schemas.py 精简为纯 HTTP I/O 形状文件。96 项测试全绿。
 
 ## 读取规则
 - `STATUS.md` 是当前唯一权威入口，先看这里再看路线图。
@@ -23,6 +22,7 @@
 
 | Date | Event | Gate / Phase | Notes |
 |------|-------|--------------|-------|
+| 2026-05-28 | 领域类型归位完成，api/dto/schemas.py 精简为纯 HTTP I/O 文件 | Verify / Review | 新建 model/types/agent.py、skills/types.py、execution/streaming/types.py。22 处非 API 层文件的 `from api.dto.schemas import` 已全部迁至对应低层模块。api/routes 与测试同步迁移。删除 schemas.py 中的 re-export 块。96 项测试全绿。 |
 | 2026-05-27 | 整体架构极致重构解耦与九层模型边界清洗完成 | Verify / Review | 成功实现 L1-L8 层全解耦。L2 彻底无状态化，L3 桥接工具完全闭包回调化，L5-L8 循环依赖完全剥离，落地 L6 统一装配器 ContextAssembler，96 项单测全部绿灯通过。 |
 | 2026-05-23 | 编写通用中间件地基与工具中间件包并验证 | Verify / Review | 跳过切片5，直接完成切片6。成功实现完全通用的 BaseMiddleware、MiddlewarePipeline 地基，并派生出首个工具特定的 SandboxMiddleware、ApprovalMiddleware 与 4 个单元测试，单测完美通过（81/83 Passed）。 |
 | 2026-05-22 | 已完成任务卡归档 | — | 将 TASK-030/035/036/037/038/038-1/038-2/040/040b/041/071/072a/072b 移入 `specs/done/`；SUPP-03/04 未完成保留原位。 |

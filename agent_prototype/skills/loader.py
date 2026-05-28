@@ -11,7 +11,7 @@
 from pathlib import Path
 from typing import Optional
 import time as _time
-from agent_prototype.api.dto.schemas import SkillSummary
+from agent_prototype.skills.types import SkillSummary
 from . import config as _skill_config
 from .config import (
     DEFAULT_PROTECTED_SKILL_NAMES,

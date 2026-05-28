@@ -18,9 +18,9 @@ from typing import AsyncIterator
 from sqlalchemy.orm import Session
 
 # ── 本地模块 ──────────────────────────────────────────────────────────────────
-from agent_prototype.api.dto.schemas import (
-    AgentEvent, AgentInput, AgentState, ChatMessage, StreamFrame, ToolResult,
-)
+from agent_prototype.model.types.agent import AgentEvent, AgentInput, AgentState
+from agent_prototype.model.types.domain import ChatMessage, ToolResult
+from agent_prototype.execution.streaming.types import StreamFrame
 from agent_prototype.memory.session.store import SqliteSessionStore
 from agent_prototype.infra.db.orm_models import SessionRunRecord
 from agent_prototype.security.approval.store import SqliteApprovalStore

@@ -1,29 +1,22 @@
 """接口层 DTO 模型 (Data Transfer Objects)。
 
-面向 HTTP API 的请求/响应模型。
-核心基础类型统一定义在 agent_prototype.model.types.domain，本模块导入后重导出，
-保证所有上层 import 路径无需变更。
+面向 HTTP API 的请求/响应模型。本模块只承载“HTTP I/O 形状”：
+- 请求体（Input）：HTTP 入参的反序列化形状
+- 响应体（Output / Summary / Detail / Response）：HTTP 出参的序列化形状
+- 错误体（ApiError / ErrorResponse）：统一错误返回的 JSON 结构
+
+核心领域类型（AgentState / AgentEvent / AgentInput / AgentOutput / RunMetadata /
+FinalizeRunInput / StreamFrame / SkillSummary / ChatMessage 等）已归位至各自所在
+低层模块，本文件只在需要组合它们时按需 import。任何业务层都不应再从此处获取
+领域类型——这是九层模型的硬性边界。
 """
 
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 from pydantic import BaseModel, Field
 
-from agent_prototype.model.types.domain import (
-    RiskLevel,
-    ToolCallFunction,
-    ToolCall,
-    ToolError,
-    ToolResult,
-    ChatMessage,
-)
-from agent_prototype.security.policy import (
-    SandboxMode,
-    ApprovalPolicy,
-    PermissionProfile,
-    PROFILES,
-    needs_approval,
-)
+# 仅用于本文件 HTTP 响应体的字段组合（如 TraceRunSummary 持有 AgentEvent 列表）。
+from agent_prototype.model.types.agent import AgentEvent, AgentState
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -42,80 +35,6 @@ class ToolCallSummary(BaseModel):
     started_at: datetime
     finished_at: Optional[datetime] = None
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 运行时消息 & 状态 — Runtime Message & State
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-class AgentState(BaseModel):
-    """某个 session 的最新状态快照。"""
-
-    messages: list[ChatMessage] = Field(default_factory=list)
-    step: int = 0
-    agent_name: Optional[str] = None
-
-class AgentEvent(BaseModel):
-    """一次 run 中的结构化事件。"""
-
-    index: int
-    type: Literal["assistant_tool_call", "tool_result", "tool_error", "final_answer","approval_required","approval_result","thinking"]
-    content: Optional[str] = None
-    tool_name: Optional[str] = None
-    tool_call_id: Optional[str] = None
-    tool_result: Optional[ToolResult] = None
-
-class StreamFrame(BaseModel):
-    """一条 SSE 推送帧的结构。
-
-    type 取值：
-    - start      : 运行开始，包含 session_id / run_id / agent_name / skill_name
-    - agent_event: 一个语义事件（工具调用 / 工具结果 / 工具错误）
-    - delta      : 最终回答阶段的 token 级增量内容
-    - end        : 运行完成，包含完整 reply / state / metadata
-    - error      : 运行失败，包含错误码和错误信息
-    - paused     : 运行因审批暂停，包含 run_id
-    - resume         : 审批通过后恢复运行，包含 run_id
-    - thinking_delta : 思考过程的 token 级增量内容
-    """
-
-    type: Literal["start", "agent_event", "delta", "end", "error", "paused", "resume", "thinking_delta"]
-    data: dict[str, Any]
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Run 请求 & 响应 — Run I/O
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-class AgentInput(BaseModel):
-    """`/run` 请求体。"""
-
-    agent_name: Optional[str] = None
-    session_id: str = Field(min_length=1)
-    user_input: str = Field(min_length=1)
-    skill_name: Optional[str] = None  # 显式指定本轮要加载的 skill；不传时只给摘要目录
-
-class RunMetadata(BaseModel):
-    """一次 /run 的轻量元信息。"""  # 这个模型专门承载前端/CLI/测试最常读的运行标识信息
-
-    session_id: str
-    run_id: str = ""
-    agent_name: Optional[str] = None
-    skill_name: Optional[str] = None
-
-class AgentOutput(BaseModel):
-    """`/run` 响应体。"""
-
-    reply: str
-    state: AgentState
-    events: list[AgentEvent]
-    metadata: RunMetadata
-    usage: Optional[Any] = None  # ModelUsage，运行时由 agent_runtime 填入
-
-class FinalizeRunInput(BaseModel):
-    """内部用，run 完成时写库。"""
-
-    user_input: str
-    partial_reply: str
-    agent_name: Optional[str] = None
-    skill_name: Optional[str] = None
 
 class RunDetailResponse(BaseModel):
     """GET /sessions/{id}/runs/{run_id} 的响应体。"""
@@ -228,19 +147,6 @@ class CompactOutput(BaseModel):
     did_compact: bool
     removed_count: int = 0  # 一共折叠了多少条旧消息
     compact_tokens: Optional[int] = None  # 压缩后实际 input_tokens（来自模型 usage），用于更新 context_tokens
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Skill — Skill
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-class SkillSummary(BaseModel):
-    """skill 列表使用的轻量元数据"""
-
-    name: str
-    description: Optional[str] = None  # skill 摘要
-    path: str                           # 裁剪后的安全路径
-    enabled: bool = True
-    error: Optional[str] = None         # skill 损坏时返回的错误信息
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 统一错误响应 — Error

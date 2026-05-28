@@ -23,10 +23,10 @@ from agent_prototype.security.approval.store import SqliteApprovalStore
 from agent_prototype.memory.session.store import SqliteSessionStore
 from agent_prototype.model.types.model_types import ModelStreamEvent
 from agent_prototype.tools.registry import build_run_registry
-from agent_prototype.api.dto.schemas import (
-    AgentEvent, AgentInput, AgentOutput, AgentState,
-    RunMetadata, StreamFrame,
+from agent_prototype.model.types.agent import (
+    AgentEvent, AgentInput, AgentOutput, AgentState, RunMetadata,
 )
+from agent_prototype.execution.streaming.types import StreamFrame
 from agent_prototype.execution.runtime.agent_runtime import AgentRunner
 from agent_prototype.execution.runtime.agent_executor import _executor, _global_futures
 from .run_context_builder import RunContextBuilder

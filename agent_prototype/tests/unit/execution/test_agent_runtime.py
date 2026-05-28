@@ -1,7 +1,8 @@
 import unittest
 
 from agent_prototype.agent.definition import AgentDefinition
-from agent_prototype.api.dto.schemas import AgentInput, ChatMessage, ToolCall, ToolCallFunction
+from agent_prototype.model.types.agent import AgentInput
+from agent_prototype.model.types.domain import ChatMessage, ToolCall, ToolCallFunction
 from agent_prototype.model.types.model_types import ModelResponse
 from agent_prototype.execution.runtime.agent_runtime import AgentRunner
 

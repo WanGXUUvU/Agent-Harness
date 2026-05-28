@@ -16,7 +16,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from agent_prototype.agent.definition import AgentDefinition
-from agent_prototype.api.dto.schemas import AgentInput
+from agent_prototype.model.types.agent import AgentInput
 from agent_prototype.context.skill_context import SkillContextService
 
 

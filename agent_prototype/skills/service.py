@@ -17,7 +17,7 @@
 
 from sqlalchemy.orm import Session
 
-from agent_prototype.api.dto.schemas import SkillSummary
+from agent_prototype.skills.types import SkillSummary
 from agent_prototype.skills.loader import (
     list_skills as loader_list_skills,
     save_skill_config,

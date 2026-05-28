@@ -12,7 +12,7 @@ from typing import Optional
 
 from agent_prototype.security.approval.store import SqliteApprovalStore
 from agent_prototype.memory.session.store import SqliteSessionStore
-from agent_prototype.api.dto.schemas import AgentEvent, AgentInput, AgentState
+from agent_prototype.model.types.agent import AgentEvent, AgentInput, AgentState
 
 
 class ToolRunObserver:

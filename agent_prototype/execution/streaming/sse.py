@@ -5,7 +5,7 @@
 - build_reply_preview : 截断回复文本，生成单行摘要。
 """
 
-from agent_prototype.api.dto.schemas import StreamFrame
+from agent_prototype.execution.streaming.types import StreamFrame
 
 
 def _sse_frame(frame: StreamFrame) -> str:

@@ -24,10 +24,10 @@ from sqlalchemy.orm import Session
 
 # ── 本地模块 ──────────────────────────────────────────────────────────────────
 from agent_prototype.security.policy import PROFILES
+from agent_prototype.model.types.agent import AgentState
+from agent_prototype.security.policy import ApprovalPolicy, PermissionProfile, SandboxMode
 from agent_prototype.api.dto.schemas import (
-    AgentState, ApprovalPolicy, CreateSessionInput,
-    PermissionProfile, RenameSessionInput, ResetInput,
-    SandboxMode, SessionSummary,
+    CreateSessionInput, RenameSessionInput, ResetInput, SessionSummary,
 )
 from agent_prototype.infra.db.orm_models import ModelSetting, ProviderConfig
 from agent_prototype.memory.session.store import SqliteSessionStore
