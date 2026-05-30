@@ -1,12 +1,20 @@
-"""工具调用结果类型。
+"""工具调用结果类型定义。
 
 职责：
-- 定义工具执行阶段的结构化结果与错误模型。
-- 供 tools/security/execution/observation 等运行时模块共享。
+- 定义工具运行终态的结构化结果：ToolResult 与 ToolError。
+- 作为运行时、安全层及业务编排层的统一通信契约。
+
+上游：
+- ToolRegistry
+- 各内置工具的执行 handler
+
+下游：
+- Runner / execution 运行时
+- Observation / trace 审计层
 
 不负责：
-- 不定义工具注册声明（见 tools/types.py）。
-- 不定义模型协议消息（见 core/types.py）。
+- 不做工具静态注册声明（见 tools/types.py）。
+- 不做具体模型协议消息转换（见 core/types.py）。
 """
 
 from typing import Any, Optional

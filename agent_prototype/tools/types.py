@@ -1,8 +1,18 @@
-"""
-[L3 工具层 - 类型定义]
+"""工具描述核心类型定义。
 
-工具底层标准：Tool 基类、RiskLevel、参数类型校验规则与 Schema 声明协议。
-原先 RiskLevel 在 core/types.py，现归位至本模块。
+职责：
+- 定义系统内工具注册规范：ToolDefinition 类。
+- 提供工具安全拦截评估依赖的安全风险等级 Enum：RiskLevel。
+
+上游：
+- ToolRegistry
+
+下游：
+- 各内置工具的 build_definition 方法
+
+不负责：
+- 不提供工具的具体运行时执行逻辑。
+- 不做具体模型的协议消息转换。
 """
 
 from dataclasses import dataclass
@@ -11,11 +21,11 @@ from typing import Any, Callable
 
 
 class RiskLevel(str, Enum):
-    """工具风险等级。
+    """工具安全风险等级。
 
-    - SAFE: 绝对安全（比如纯读操作、Echo测试），可以绿灯直行，不需要人类审批。
-    - WRITE: 有写入操作（比如往磁盘写文件），稍微有点敏感，会根据用户的安全策略决定要不要安检拦截。
-    - DANGER: 高度危险（比如网络爬虫或者修改系统配置），除非安全策略是"极度放任"，否则必须拦截并呈交人类审批。
+    - SAFE: 绝对安全（只读或 Echo 测试），无须人类审批。
+    - WRITE: 有写入操作，基于安全策略决定是否拦截审批。
+    - DANGER: 高风险敏感操作，默认必须进行人类审批。
     """
 
     SAFE = "safe"
@@ -28,7 +38,7 @@ class RiskLevel(str, Enum):
 
 @dataclass(frozen=True)
 class ToolDefinition:
-    """单个工具的描述。frozen=True 确保定义不可变，避免运行中被改坏。"""
+    """单个工具的只读注册描述。"""
 
     name: str
     schema: dict

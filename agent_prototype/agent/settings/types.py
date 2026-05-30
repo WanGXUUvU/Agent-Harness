@@ -1,8 +1,18 @@
-"""
-[智能体设置层 - 类型定义]
+"""全局配置类型定义。
 
-模型供应商与模型配置的领域类型。
-原先在 core/types.py，现归位至本模块。
+职责：
+- 定义大模型厂商及模型配置的领域传输模型（DTO）。
+
+上游：
+- SettingsService
+- Settings Store
+
+下游：
+- 无
+
+不负责：
+- 不做数据库物理表定义。
+- 不包含业务逻辑。
 """
 
 from datetime import datetime
