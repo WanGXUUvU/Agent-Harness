@@ -27,7 +27,8 @@ from agent_prototype.execution.streaming.types import StreamFrame
 from agent_prototype.memory.session.store import SqliteSessionStore
 from agent_prototype.infra.db.orm_models import SessionRunRecord
 from agent_prototype.security.approval.store import SqliteApprovalStore
-from agent_prototype.security.middleware.base import ToolCallContext
+from agent_prototype.security.middleware.base import MiddlewarePipeline, ToolCallContext
+from agent_prototype.security.sandbox.middleware import SandboxMiddleware
 from agent_prototype.tools.registry import build_run_registry
 from agent_prototype.execution.runtime.agent_runtime import AgentRunner
 from agent_prototype.execution.streaming.sse import _sse_frame
@@ -100,6 +101,7 @@ class ResumeRunService:
             workspace_path = self.session_store.read_session_record(
                 approval.session_id
             ).workspace_path
+            pipeline = MiddlewarePipeline([SandboxMiddleware()])
 
             progress_queue: asyncio.Queue[AgentEvent] = asyncio.Queue()
 
@@ -122,17 +124,23 @@ class ResumeRunService:
                 run_id=approval.run_id,
                 extra={
                     "workspace_path": workspace_path,
+                    "allow_tool_names": definition.tool_names,
                 },
                 on_progress=on_progress,
                 loop=loop,
             )
 
-            execute_task = loop.run_in_executor(
-                None,
-                tool_registry.execute_tool_call,
-                approval.tool_name,
-                approval.arguments,
-                context,
+            async def terminal_execute_call() -> ToolResult:
+                return await loop.run_in_executor(
+                    None,
+                    tool_registry.execute_tool_call,
+                    context.tool_name,
+                    context.tool_args,
+                    context,
+                )
+
+            execute_task = asyncio.create_task(
+                pipeline.execute(context, terminal_execute_call)
             )
 
             while True:

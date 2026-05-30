@@ -4,6 +4,7 @@ import type { ApprovalInfo } from '../types';
 const props = defineProps<{
   approval: ApprovalInfo;
   isLoading: boolean;
+  isProcessing?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -25,8 +26,10 @@ function formatArgs(raw: string): string {
 <template>
   <div class="approval-card">
     <div class="approval-header">
-      <span class="approval-icon">🔐</span>
-      <span class="approval-title">工具调用需要审批</span>
+      <span class="approval-icon">{{ isProcessing ? '⏳' : '🔐' }}</span>
+      <span class="approval-title">
+        {{ isProcessing ? '正在执行已批准工具' : '工具调用需要审批' }}
+      </span>
     </div>
 
     <div class="approval-body">
@@ -47,7 +50,7 @@ function formatArgs(raw: string): string {
     <div class="approval-actions">
       <button
         class="action-btn btn-approve"
-        :disabled="isLoading"
+        :disabled="isLoading || isProcessing"
         @click="emit('approve')"
         title="批准此次调用"
       >
@@ -56,7 +59,7 @@ function formatArgs(raw: string): string {
       </button>
       <button
         class="action-btn btn-approve-all"
-        :disabled="isLoading"
+        :disabled="isLoading || isProcessing"
         @click="emit('approveAll')"
         title="切换到全自动模式，之后不再询问"
       >
@@ -65,13 +68,16 @@ function formatArgs(raw: string): string {
       </button>
       <button
         class="action-btn btn-reject"
-        :disabled="isLoading"
+        :disabled="isLoading || isProcessing"
         @click="emit('reject')"
         title="拒绝此次工具调用"
       >
         <span class="btn-icon">✕</span>
         拒绝
       </button>
+    </div>
+    <div v-if="isProcessing" class="approval-processing-tip">
+      正在等待本次工具执行完成…
     </div>
   </div>
 </template>
@@ -166,6 +172,12 @@ function formatArgs(raw: string): string {
   gap: 8px;
   padding: 10px 14px;
   border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.approval-processing-tip {
+  padding: 0 14px 12px;
+  color: var(--text-secondary, #aaa);
+  font-size: 12px;
 }
 
 .action-btn {

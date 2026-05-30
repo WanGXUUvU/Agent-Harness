@@ -39,6 +39,7 @@ export function useWorkspace() {
 
   const isAwaitingApproval = ref(false);
   const pendingApprovalInfo = ref<ApprovalInfo | null>(null);
+  const isResolvingApproval = ref(false);
   const permissionProfile = ref<string>('conservative');
 
   const streamAbortController = ref<AbortController | null>(null);
@@ -117,6 +118,7 @@ export function useWorkspace() {
     errorMsg,
     isAwaitingApproval,
     pendingApprovalInfo,
+    isResolvingApproval,
     onLiveAgentEvent,
     extractChildAgents,
     updatePermissionProfile,
@@ -190,6 +192,7 @@ export function useWorkspace() {
     infoMsg,
     isAwaitingApproval,
     pendingApprovalInfo,
+    isResolvingApproval,
     permissionProfile,
     childAgentsBySession,
     api,

@@ -22,6 +22,7 @@ const props = defineProps<{
   lastCompletedRun?: TraceRunSummary | null;
   isAwaitingApproval?: boolean;
   pendingApprovalInfo?: ApprovalInfo | null;
+  isProcessingApproval?: boolean;
   permissionProfile?: string;
   /** 当前已使用的 token 数（来自 session.context_tokens） */
   contextTokens?: number;
@@ -166,6 +167,7 @@ const handleReset = () => {
       v-if="isAwaitingApproval && pendingApprovalInfo"
       :approval="pendingApprovalInfo"
       :isLoading="isLoading"
+      :isProcessing="isProcessingApproval"
       @approve="$emit('approve')"
       @approve-all="$emit('approveAll')"
       @reject="$emit('reject')"

@@ -22,6 +22,16 @@ export type TimelineChunk =
 
 const mergeThreshold = 2; // >=2次完整调用（>=4个事件）开始折叠
 
+// 参数敏感、带副作用的工具不做同名折叠，否则会把多次 write/delete 合成一张卡。
+const nonCollapsibleToolNames = new Set([
+  'write_file',
+  'delete_file',
+  'replace_in_file',
+  'rename_file',
+  'move_file',
+  'copy_file',
+]);
+
 // 将原始 AgentEvent 数组构建为 MergedTimelineItem 数组（合并同名工具连续调用）
 const buildMergedItems = (events: AgentEvent[]): MergedTimelineItem[] => {
   const items: MergedTimelineItem[] = [];
@@ -29,7 +39,9 @@ const buildMergedItems = (events: AgentEvent[]): MergedTimelineItem[] => {
   const flushG = () => {
     if (!cg) return;
     const callCount = cg.events.filter(e => e.type === 'assistant_tool_call').length;
-    if (callCount < mergeThreshold) cg.events.forEach(e => items.push({ kind: 'event', event: e }));
+    const shouldCollapse =
+      !nonCollapsibleToolNames.has(cg.tool_name) && callCount >= mergeThreshold;
+    if (!shouldCollapse) cg.events.forEach(e => items.push({ kind: 'event', event: e }));
     else items.push({ kind: 'event_group', tool_name: cg.tool_name, count: callCount, raw_events: cg.events });
     cg = null;
   };

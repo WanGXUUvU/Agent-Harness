@@ -16,6 +16,7 @@ interface ApprovalFlowOptions {
   errorMsg: Ref<string | null>;
   isAwaitingApproval: Ref<boolean>;
   pendingApprovalInfo: Ref<ApprovalInfo | null>;
+  isResolvingApproval: Ref<boolean>;
   onLiveAgentEvent: (sessionId: string, ev: any) => void;
   extractChildAgents: (sessionId: string, msgs: AgentMessage[], traceRuns: TraceRunSummary[]) => void;
   updatePermissionProfile: (profile: string) => Promise<void>;
@@ -34,6 +35,7 @@ export function useApprovalFlow(options: ApprovalFlowOptions) {
     errorMsg,
     isAwaitingApproval,
     pendingApprovalInfo,
+    isResolvingApproval,
     onLiveAgentEvent,
     extractChildAgents,
     updatePermissionProfile,
@@ -53,6 +55,7 @@ export function useApprovalFlow(options: ApprovalFlowOptions) {
 
     isStreaming.value = true;
     isChatLoading.value = true;
+    isResolvingApproval.value = true;
     streamingTimeline.value = [];
     errorMsg.value = null;
     let capturedRunId: string | null = null;
@@ -90,6 +93,7 @@ export function useApprovalFlow(options: ApprovalFlowOptions) {
         } else if (frame.type === 'paused') {
           stillAwaitingApproval = true;
           isAwaitingApproval.value = true;
+          isResolvingApproval.value = false;
 
           const partialTimeline = [...initialTimeline, ...streamingTimeline.value];
           if (capturedRunId) {
@@ -161,6 +165,7 @@ export function useApprovalFlow(options: ApprovalFlowOptions) {
         errorMsg.value = 'Resume failed: ' + err.message;
       }
     } finally {
+      isResolvingApproval.value = false;
       isAwaitingApproval.value = stillAwaitingApproval;
       if (!stillAwaitingApproval) {
         pendingApprovalInfo.value = null;

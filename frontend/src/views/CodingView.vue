@@ -196,6 +196,7 @@ onMounted(() => {
               :lastCompletedRun="workspace.lastCompletedRun.value"
               :isAwaitingApproval="workspace.isAwaitingApproval.value"
               :pendingApprovalInfo="workspace.pendingApprovalInfo.value"
+              :isProcessingApproval="workspace.isResolvingApproval.value"
               :permissionProfile="workspace.permissionProfile.value"
               :contextTokens="workspace.activeSession.value?.context_tokens ?? 0"
               :contextLength="workspace.activeModelContextLength.value"
