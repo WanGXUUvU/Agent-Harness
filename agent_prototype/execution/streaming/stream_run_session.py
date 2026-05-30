@@ -110,10 +110,13 @@ class StreamRunSession:
                         )
                     )
                 elif isinstance(item, AgentEvent):
-                    # 先 flush 当前 thinking，保证 thinking 排在此事件之前
-                    _flush_thinking()
-                    events.append(item)
-                    yield _sse_frame(StreamFrame(type="agent_event", data=item.model_dump()))
+                    if item.type == "tool_progress":
+                        # 进度消息仅作为即时通道数据发射，不阻断思考流，亦不落库存储
+                        yield _sse_frame(StreamFrame(type="agent_event", data=item.model_dump()))
+                    else:
+                        _flush_thinking()
+                        events.append(item)
+                        yield _sse_frame(StreamFrame(type="agent_event", data=item.model_dump()))
 
             # 循环正常结束：flush 最后一轮 thinking（最终回答前的思考，无后续工具调用）
             _flush_thinking()

@@ -34,6 +34,7 @@ class AgentEvent(BaseModel):
         "approval_required",
         "approval_result",
         "thinking",
+        "tool_progress",
     ]
     content: Optional[str] = None
     tool_name: Optional[str] = None

@@ -76,7 +76,7 @@ export interface ToolResult {
 
 export interface AgentEvent {
   index: number;
-  type: 'assistant_tool_call' | 'tool_result' | 'tool_error' | 'final_answer' | 'approval_required' | 'approval_rejected' | 'thinking';
+  type: 'assistant_tool_call' | 'tool_result' | 'tool_error' | 'final_answer' | 'approval_required' | 'approval_rejected' | 'thinking' | 'tool_progress';
   content?: string | null;
   tool_name?: string | null;
   tool_call_id?: string | null;

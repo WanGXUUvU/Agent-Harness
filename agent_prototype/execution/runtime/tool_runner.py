@@ -137,7 +137,7 @@ def handle_tool_calls(
     )
 
 
-# ── 异步工具执行（含审批） ─────────────────────────────────────────────────────
+# ── 异步工具执行（含审批与并发） ───────────────────────────────────────────────
 
 
 async def async_handle_tool_calls(
@@ -155,41 +155,21 @@ async def async_handle_tool_calls(
     saved_messages: Optional[list[ChatMessage]] = None,
     session_type: str = "coding",
 ) -> AsyncIterator[Union[AgentEvent, ToolTurnResult]]:
-    """异步流式工具执行器（超强安全大洋葱！）：支持异步并发、支持复杂的洋葱拦截器中间件链（例如沙箱运行 SandboxMiddleware 和人工审批 ApprovalMiddleware）。
-    在异步执行过程中，如果遇到敏感操作（触发了审批规则），它会抛出异常中断执行，并以 `approval_required` 事件形式实时 yield 出来通知前端，
-    然后暂停，等人类来审批。如果没有遇到阻碍，就会默默在线程池里安全完成调用。
-
-    需要拿到的东西：
-    - tool_registry: 工具箱仓库。
-    - tool_calls: 待调用的工具列表。
-    - allow_tool_names: 工具白名单。
-    - event_index: 序列号起始索引。
-    - session_id: 当前会话的 ID。
-    - run_id: 运行的唯一 ID。
-    - workspace_path: 工作区物理路径（用于沙箱环境隔离，可选）。
-    - on_tool_start: 工具启动时的回调跟踪（可选）。
-    - on_tool_finish: 工具结束时的回调跟踪（可选）。
-    - approval_policy: 审批策略。
-    - on_approval_required: 触发审批时的回调（可选）。
-    - saved_messages: 历史消息快照（用于审批现场还原，可选）。
-    - session_type: 会话类型（默认 "coding"）。
-
-    会给出来的结果：
-    - 一个异步生成器，会实时 yield 智能体事件（AgentEvent）或者最终结算账单（ToolTurnResult）。
+    """异步流式工具执行引擎。
+    
+    支持多工具基于 asyncio.gather 并发调度、中间件链执行拦截、
+    跨线程多生产者流式进度实时汇聚（asyncio.Queue）以及阻断性异常（如审批）时的并发安全生命周期回收。
     """
     tool_messages: list[ChatMessage] = []
     current_index = event_index
+
+    # 1. 根据会话模式初始化安全中间件管道
     if session_type == "coding":
-        # 初始化洋葱中间件管道
-        pipeline = MiddlewarePipeline(
-            [
-                SandboxMiddleware(),
-                ApprovalMiddleware(),
-            ]
-        )
+        pipeline = MiddlewarePipeline([SandboxMiddleware(), ApprovalMiddleware()])
     else:
         pipeline = MiddlewarePipeline([ApprovalMiddleware()])
 
+    # 2. 播报工具启动通知事件
     for tool_call in tool_calls:
         yield AgentEvent(
             index=current_index,
@@ -199,11 +179,35 @@ async def async_handle_tool_calls(
             content=tool_call.function.arguments,
         )
         current_index += 1
-        risk = tool_registry.get_risk_level(tool_call.function.name)
+
+    # 3. 创建多生产者共享队列，汇聚后台工作线程的实时进度
+    event_queue = asyncio.Queue()
+
+    async def make_progress_callback(tc_id: str, t_name: str):
+        async def on_progress(text: str) -> None:
+            await event_queue.put(
+                AgentEvent(
+                    index=0,
+                    type="tool_progress",
+                    tool_name=t_name,
+                    tool_call_id=tc_id,
+                    content=text,
+                )
+            )
+        return on_progress
+
+    # 4. 定义单个工具的执行协程 Worker
+    async def run_single_tool(tc: ToolCall, idx_slot: list[int]):
+        if allow_tool_names is not None and tc.function.name not in allow_tool_names:
+            raise ValueError(f"Tool not allowed: {tc.function.name}")
+
+        risk = tool_registry.get_risk_level(tc.function.name)
+        progress_cb = await make_progress_callback(tc.id, tc.function.name)
+
         context = ToolCallContext(
-            tool_name=tool_call.function.name,
-            tool_args=tool_call.function.arguments,
-            tool_call_id=tool_call.id,
+            tool_name=tc.function.name,
+            tool_args=tc.function.arguments,
+            tool_call_id=tc.id,
             session_id=session_id,
             run_id=run_id,
             extra={
@@ -212,28 +216,17 @@ async def async_handle_tool_calls(
                 "risk_level": risk,
                 "on_approval_required": on_approval_required,
                 "saved_messages": saved_messages,
-                "current_index": current_index,
+                "current_index": idx_slot[0],
                 "approval_policy": approval_policy,
             },
+            on_progress=progress_cb,
+            loop=asyncio.get_event_loop(),
         )
-        tool_name = context.tool_name
-        tool_call_id = context.tool_call_id
-        tool_args = context.tool_args
 
-        async def terminal_execute_call(
-            *,
-            tool_name: str = tool_name,
-            tool_call_id: str = tool_call_id,
-            tool_args: str = tool_args,
-        ) -> ToolResult:
-            # ── 工具执行 ──────────────────────────────────────────────────────────
+        async def terminal_execute_call() -> ToolResult:
             record_id = None
             if on_tool_start:
-                record_id = on_tool_start(
-                    tool_name,
-                    tool_call_id,
-                    tool_args,
-                )
+                record_id = on_tool_start(context.tool_name, context.tool_call_id, context.tool_args)
 
             try:
                 loop = asyncio.get_event_loop()
@@ -241,48 +234,99 @@ async def async_handle_tool_calls(
                     loop.run_in_executor(
                         _tool_thread_pool,
                         tool_registry.execute_tool_call,
-                        tool_name,
-                        tool_args,
+                        context.tool_name,
+                        context.tool_args,
                     ),
                     timeout=TOOL_TIMEOUT,
                 )
                 finish_status = "completed" if res.ok else "failed"
-
             except asyncio.TimeoutError:
                 res = None
                 finish_status = "timeout"
-
             except Exception:
                 res = None
                 finish_status = "failed"
 
             if on_tool_finish and record_id is not None:
-                on_tool_finish(
-                    record_id,
-                    finish_status,
-                    res.content if res else None,
-                )
+                on_tool_finish(record_id, finish_status, res.content if res else None)
             return res
 
-        try:
-            tool_result = await pipeline.execute(context, terminal_execute_call)
-        except ApprovalRequiredException as exc:
-            yield AgentEvent(
-                index=current_index,
-                type="approval_required",
-                tool_name=context.tool_name,
-                tool_call_id=context.tool_call_id,
-                content=exc.approval_id,
-            )
-            current_index += 1
-            yield ToolTurnResult(
-                events=[],
-                tool_messages=[],
-                next_event_index=current_index,
-                paused_for_approval=True,
-            )
-            return
+        res = await pipeline.execute(context, terminal_execute_call)
+        return context, res
 
+    # 5. 封装并发 Task 集合并启动
+    tasks = []
+    for tool_call in tool_calls:
+        task = asyncio.create_task(run_single_tool(tool_call, [current_index]))
+        tasks.append(task)
+
+    gather_task = asyncio.ensure_future(asyncio.gather(*tasks))
+
+    # 6. 流式事件流捕获主循环
+    while True:
+        if gather_task.done() and event_queue.empty():
+            break
+
+        queue_get_task = asyncio.create_task(event_queue.get())
+        done, pending = await asyncio.wait(
+            [gather_task, queue_get_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+
+        if queue_get_task in done:
+            progress_event = queue_get_task.result()
+            progress_event.index = current_index
+            current_index += 1
+            yield progress_event
+        else:
+            queue_get_task.cancel()
+
+        if gather_task.done():
+            try:
+                gather_task.result()
+            except ApprovalRequiredException as exc:
+                # 安全自愈：强行 cancel 其余尚在活跃状态的任务以阻断泄露
+                for t in tasks:
+                    if not t.done():
+                        t.cancel()
+
+                # 精准定位触发了审批拦截的具体工具及 ID
+                failed_tool_name = None
+                failed_tool_call_id = None
+                for t in tasks:
+                    if t.done() and not t.cancelled():
+                        e = t.exception()
+                        if isinstance(e, ApprovalRequiredException):
+                            idx = tasks.index(t)
+                            failed_tool_name = tool_calls[idx].function.name
+                            failed_tool_call_id = tool_calls[idx].id
+                            break
+
+                yield AgentEvent(
+                    index=current_index,
+                    type="approval_required",
+                    tool_name=failed_tool_name,
+                    tool_call_id=failed_tool_call_id,
+                    content=exc.approval_id,
+                )
+                current_index += 1
+                yield ToolTurnResult(
+                    events=[],
+                    tool_messages=[],
+                    next_event_index=current_index,
+                    paused_for_approval=True,
+                )
+                return
+            except Exception as exc:
+                # 其它未知异常：强行 cancel 其余活跃任务并向上抛出
+                for t in tasks:
+                    if not t.done():
+                        t.cancel()
+                raise exc
+
+    # 7. 并发结束，按时序合并输出最终卡片
+    results = gather_task.result()
+    for tool_call, (context, tool_result) in zip(tool_calls, results):
         if tool_result is None:
             error_message = f"Tool timed out after {TOOL_TIMEOUT}s"
             yield AgentEvent(
@@ -299,10 +343,7 @@ async def async_handle_tool_calls(
                     content=f"[TOOL_TIMEOUT] {error_message}",
                 )
             )
-            current_index += 1
-            continue
-
-        if tool_result.ok:
+        elif tool_result.ok:
             yield AgentEvent(
                 index=current_index,
                 type="tool_result",
@@ -335,7 +376,6 @@ async def async_handle_tool_calls(
                     content=f"[TOOL_ERROR] {error_message}",
                 )
             )
-
         current_index += 1
 
     yield ToolTurnResult(

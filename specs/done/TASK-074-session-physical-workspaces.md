@@ -41,32 +41,32 @@ Session Management / Workspace Sandbox / OS Native Dialog Proxy / UI Sidebar
   - [x] 运行 `alembic current` 确认 `workspace_path` / `WorkspaceRecord` 迁移已落地。
   - [x] 若未落地，补写并应用 Alembic 迁移脚本。
 
-- [ ] **切片 2：AppleScript 弹窗代理 + WorkspaceService**
-  - [ ] `infrastructure/os_proxy/apple_script.py`：`open_folder_dialog() -> Optional[str]`，含超时/取消处理。
-  - [ ] `application/services/workspace_service.py`：`WorkspaceService.__init__(db)`，`list_workspaces()` / `register_workspace(path)` / `select_dialog()`。
-  - [ ] `interface/api/routes/workspace_routes.py`：`GET /workspaces` + `POST /workspaces/select-dialog`。
-  - [ ] 注册路由进 `main.py`。
+- [x] **切片 2：AppleScript 弹窗代理 + WorkspaceService**
+  - [x] `infrastructure/os_proxy/apple_script.py`：`open_folder_dialog() -> Optional[str]`，含超时/取消处理。
+  - [x] `application/services/workspace_service.py`：`WorkspaceService.__init__(db)`，`list_workspaces()` / `register_workspace(path)` / `select_dialog()`。
+  - [x] `interface/api/routes/workspace_routes.py`：`GET /workspaces` + `POST /workspaces/select-dialog`。
+  - [x] 注册路由进 `main.py`。
 
-- [ ] **切片 3：SessionService 绑定工作区**
-  - [ ] `SessionService.create_session(workspace_path)` 写入 `workspace_path` / `workspace_name`。
-  - [ ] `GET /sessions` 响应中携带 `workspace_path` / `workspace_name` 字段。
+- [x] **切片 3：SessionService 绑定工作区**
+  - [x] `SessionService.create_session(workspace_path)` 写入 `workspace_path` / `workspace_name`。
+  - [x] `GET /sessions` 响应中携带 `workspace_path` / `workspace_name` 字段。
 
-- [ ] **切片 4：中间件管道全接入（审批 + 沙箱）**
-  - [ ] `ApprovalMiddleware.call()`：填入真实审批拦截逻辑，通过 `context.extra["on_approval_required"]` 触发回调，yield 审批事件并暂停。
-  - [ ] `SandboxMiddleware.call()`：从 `context.extra["workspace_path"]` 读取根路径，`Path.resolve()` 后检查越界，越界返回 `ToolResult(ok=False, ...)`。
-  - [ ] `tool_executor.py`：构建 `ToolCallContext`（含 `session_id` / `run_id` / `workspace_path` / `on_approval_required`），走 `MiddlewarePipeline([SandboxMiddleware(), ApprovalMiddleware()])`，删除原有硬编码审批块。
-  - [ ] 更新 `async_handle_tool_calls` 签名，新增 `session_id` / `run_id` / `workspace_path` 参数。
-  - [ ] 全量单测通过（>= 83 passed）。
+- [x] **切片 4：中间件管道全接入（审批 + 沙箱）**
+  - [x] `ApprovalMiddleware.call()`：填入真实审批拦截逻辑，通过 `context.extra["on_approval_required"]` 触发回调，yield 审批事件并暂停。
+  - [x] `SandboxMiddleware.call()`：从 `context.extra["workspace_path"]` 读取根路径，`Path.resolve()` 后检查越界，越界返回 `ToolResult(ok=False, ...)`。
+  - [x] `tool_executor.py`：构建 `ToolCallContext`（含 `session_id` / `run_id` / `workspace_path` / `on_approval_required`），走 `MiddlewarePipeline([SandboxMiddleware(), ApprovalMiddleware()])`，删除原有硬编码审批块。
+  - [x] 更新 `async_handle_tool_calls` 签名，新增 `session_id` / `run_id` / `workspace_path` 参数。
+  - [x] 全量单测通过（>= 83 passed）。
 
-- [ ] **切片 5：前端工作区选择器**
-  - [ ] 顶部下拉组件：调用 `GET /workspaces` 渲染历史，点击"添加本地文件夹"调用 `/workspaces/select-dialog`。
-  - [ ] 新建会话时携带选中的 `workspace_path`。
+- [x] **切片 5：前端工作区选择器**
+  - [x] 顶部下拉组件：调用 `GET /workspaces` 渲染历史，点击"添加本地文件夹"调用 `/workspaces/select-dialog`。
+  - [x] 新建会话时携带选中的 `workspace_path`。
 
-- [ ] **切片 6：前端 SessionSidebar 分组折叠**
-  - [ ] 提取 `groupedSessions` 计算属性：`{ workspace_name: session[] }`。
-  - [ ] 风琴折叠渲染，active 会话所在分组自动展开。
-  - [ ] 无工作区会话归入"全局"默认组。
-  - [ ] `npm run build` 100% 通过。
+- [x] **切片 6：前端 SessionSidebar 分组折叠**
+  - [x] 提取 `groupedSessions` 计算属性：`{ workspace_name: session[] }`。
+  - [x] 风琴折叠渲染，active 会话所在分组自动展开。
+  - [x] 无工作区会话归入"全局"默认组。
+  - [x] `npm run build` 100% 通过。
 
 ---
 
