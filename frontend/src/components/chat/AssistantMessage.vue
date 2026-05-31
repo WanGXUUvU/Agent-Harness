@@ -212,7 +212,57 @@ const hasError = (chunk: TimelineChunk): boolean => {
   });
 };
 
-const isChunkCollapsed = (id: string) => collapsedChunks.value[id] ?? true;
+const hasPendingApprovalInChunk = (chunk: TimelineChunk): boolean => {
+  if (!props.isAwaitingApproval || !props.pendingApprovalInfo) return false;
+  
+  if (chunk.type === 'thinking' && chunk.segments) {
+    return chunk.segments.some((seg: ThinkingSegment) => {
+      if (seg.kind !== 'tools') return false;
+      return seg.items.some((item: MergedTimelineItem) => {
+        const pInfo = props.pendingApprovalInfo!;
+        if (item.kind === 'event') {
+          const cid = item.event.tool_call_id;
+          if (cid && cid === pInfo.tool_call_id) return true;
+          if (!cid && item.event.tool_name === pInfo.tool_name) return true;
+        } else if (item.kind === 'event_group') {
+          return item.tool_name === pInfo.tool_name;
+        }
+        return false;
+      });
+    });
+  }
+  
+  if (chunk.type === 'tools' && chunk.items) {
+    return chunk.items.some((item: MergedTimelineItem) => {
+      const pInfo = props.pendingApprovalInfo!;
+      if (item.kind === 'event') {
+        const cid = item.event.tool_call_id;
+        if (cid && cid === pInfo.tool_call_id) return true;
+        if (!cid && item.event.tool_name === pInfo.tool_name) return true;
+      } else if (item.kind === 'event_group') {
+        return item.tool_name === pInfo.tool_name;
+      }
+      return false;
+    });
+  }
+  
+  return false;
+};
+
+const isChunkCollapsed = (chunk: TimelineChunk) => {
+  const id = chunk.id;
+  if (collapsedChunks.value[id] !== undefined) {
+    return collapsedChunks.value[id];
+  }
+  
+  // If there's a pending approval in this chunk, auto-expand it!
+  if (hasPendingApprovalInChunk(chunk)) {
+    return false;
+  }
+  
+  // Default to collapsed (true)
+  return true;
+};
 
 // 💡 采用事件代理拦截来自子元素代码块中 Copy 按钮的点击事件，安全、快速且彻底免除 inline JS 漏洞
 const handleCodeBlockClick = (e: MouseEvent) => {
@@ -258,9 +308,11 @@ const handleCodeBlockClick = (e: MouseEvent) => {
       <ThinkingBlock
         v-else-if="chunk.type === 'thinking'"
         :chunk="chunk"
+        :isCollapsed="isChunkCollapsed(chunk)"
         :isAwaitingApproval="isAwaitingApproval"
         :pendingApprovalInfo="pendingApprovalInfo"
         :isProcessingApproval="isProcessingApproval"
+        @toggle="toggleChunk(chunk.id)"
         @approve="emit('approve')"
         @reject="emit('reject')"
         @approve-all="emit('approve-all')"
@@ -282,21 +334,23 @@ const handleCodeBlockClick = (e: MouseEvent) => {
             <template v-else>链式调用: {{ getToolNamesList(chunk) }}</template>
           </span>
           <span class="toggle-count">共 {{ chunk.raw_count }} 步</span>
-          <svg class="toggle-chevron" :class="{ open: !isChunkCollapsed(chunk.id) }" viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.5" fill="none">
+          <svg class="toggle-chevron" :class="{ open: !isChunkCollapsed(chunk) }" viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.5" fill="none">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
         </button>
 
-        <div class="tool-tree" :class="{ collapsed: isChunkCollapsed(chunk.id) }">
-          <ToolTree
-            :items="chunk.items"
-            :isAwaitingApproval="isAwaitingApproval"
-            :pendingApprovalInfo="pendingApprovalInfo"
-            :isProcessingApproval="isProcessingApproval"
-            @approve="emit('approve')"
-            @reject="emit('reject')"
-            @approve-all="emit('approve-all')"
-          />
+        <div class="tool-tree-wrapper" :class="{ expanded: !isChunkCollapsed(chunk) }">
+          <div class="tool-tree-inner">
+            <ToolTree
+              :items="chunk.items"
+              :isAwaitingApproval="isAwaitingApproval"
+              :pendingApprovalInfo="pendingApprovalInfo"
+              :isProcessingApproval="isProcessingApproval"
+              @approve="emit('approve')"
+              @reject="emit('reject')"
+              @approve-all="emit('approve-all')"
+            />
+          </div>
         </div>
       </div>
     </template>
@@ -310,5 +364,206 @@ const handleCodeBlockClick = (e: MouseEvent) => {
   width: 100%;
   display: flex;
   flex-direction: column;
+}
+
+.message-text {
+  font-size: 13.5px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+/* ── 链式调用外部 Trace 容器 ── */
+.history-trace-container {
+  margin: 12px 0;
+  background: rgba(var(--bg-panel-rgb, 15, 15, 19), 0.3) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.4);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+}
+
+.history-trace-container:hover {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(var(--bg-panel-rgb, 15, 15, 19), 0.45) !important;
+}
+
+.history-trace-container.has-error {
+  background: rgba(255, 69, 58, 0.03) !important;
+  border-color: rgba(255, 69, 58, 0.25);
+  box-shadow: 0 4px 20px -5px rgba(255, 69, 58, 0.15);
+}
+
+.history-trace-container.has-error:hover {
+  border-color: rgba(255, 69, 58, 0.45);
+  background: rgba(255, 69, 58, 0.05) !important;
+  box-shadow: 0 4px 24px -3px rgba(255, 69, 58, 0.2);
+}
+
+.timeline-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 10px 14px;
+  width: 100%;
+  text-align: left;
+  position: relative;
+  transition: background 0.15s;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.timeline-toggle:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.toggle-left-indicator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.toggle-left-indicator.status-success {
+  background: #0FB97F;
+  box-shadow: 0 0 8px rgba(15, 185, 127, 0.4);
+}
+
+.toggle-left-indicator.status-running {
+  background: #FFAA00;
+  box-shadow: 0 0 8px rgba(255, 170, 0, 0.4);
+}
+
+.toggle-left-indicator.status-error {
+  background: #ff453a;
+  box-shadow: 0 0 8px rgba(255, 69, 58, 0.6);
+}
+
+.evt-icon-box.header-icon-box {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-secondary, #A1A1AA);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 0.2s ease;
+  margin-right: 4px;
+}
+
+.evt-icon-box.header-icon-box.status-success {
+  color: #34D399;
+  background: rgba(52, 211, 153, 0.06);
+  border-color: rgba(52, 211, 153, 0.15);
+}
+
+.evt-icon-box.header-icon-box.status-running {
+  color: #FBBF24;
+  background: rgba(251, 191, 36, 0.06);
+  border-color: rgba(251, 191, 36, 0.15);
+}
+
+.evt-icon-box.header-icon-box.status-error {
+  color: #F87171;
+  background: rgba(248, 113, 113, 0.06);
+  border-color: rgba(248, 113, 113, 0.15);
+}
+
+.toggle-verb {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.01em;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toggle-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-family: var(--font-mono, monospace);
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 4px;
+  margin-right: 4px;
+}
+
+.toggle-chevron {
+  color: var(--text-muted);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  flex-shrink: 0;
+}
+
+.toggle-chevron.open {
+  transform: rotate(180deg);
+  color: var(--text-secondary);
+}
+
+/* --- Smooth CSS Grid Height Transition --- */
+.tool-tree-wrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, padding 0.25s ease;
+  overflow: hidden;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.tool-tree-wrapper.expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  padding: 8px 14px 12px 20px;
+}
+
+.tool-tree-inner {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+}
+
+.tool-tree-inner::before {
+  content: "";
+  position: absolute;
+  left: 31px;
+  top: 0;
+  bottom: 16px;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  z-index: 1;
+  pointer-events: none;
+}
+
+.stopped-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-family: var(--font-mono, monospace);
+  margin-top: 8px;
+  text-transform: uppercase;
 }
 </style>
