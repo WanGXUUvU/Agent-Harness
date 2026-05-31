@@ -515,7 +515,7 @@ body.theme-amber .tool-exec-body {
 .ide-code-container {
   display: flex;
   flex-direction: column;
-  background: #0b0b0e !important;
+  background: color-mix(in srgb, var(--bg-panel) 94%, var(--text-primary)) !important;
   border: none !important;
   border-radius: 6px;
   overflow: hidden;
@@ -526,8 +526,8 @@ body.theme-amber .tool-exec-body {
   display: flex;
   align-items: center;
   padding: 8px 12px;
-  background: #121217 !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--bg-panel) 90%, var(--text-primary)) !important;
+  border-bottom: 1px solid var(--border-dim) !important;
   user-select: none;
 }
 
@@ -554,7 +554,7 @@ body.theme-amber .tool-exec-body {
   font-size: 10px;
   font-weight: 500;
   font-family: var(--font-mono, monospace);
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-secondary) !important;
   letter-spacing: 0.5px;
   text-transform: lowercase;
 }
@@ -567,7 +567,7 @@ body.theme-amber .tool-exec-body {
   background: transparent;
   border: none;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-muted) !important;
   transition: all 0.2s ease;
   font-size: 10px;
   font-family: var(--font-sans);
@@ -577,12 +577,12 @@ body.theme-amber .tool-exec-body {
 }
 
 .ide-copy-btn:hover {
-  color: rgba(255, 255, 255, 0.85);
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary) !important;
+  background: var(--bg-hover) !important;
 }
 
 .ide-copy-btn.copied {
-  color: var(--accent-emerald, #34c759);
+  color: var(--accent-emerald, #34c759) !important;
 }
 
 .json-code {
@@ -591,7 +591,7 @@ body.theme-amber .tool-exec-body {
   background: transparent !important;
   font-size: 11px;
   line-height: 1.6;
-  color: #c9d1d9 !important; /* Elegant light text on obsidian backdrop */
+  color: var(--text-primary) !important; /* Adapt dynamically to both modes */
   font-family: var(--font-mono, monospace);
   overflow-x: auto;
   max-height: 320px;
@@ -604,22 +604,22 @@ body.theme-amber .tool-exec-body {
   background: transparent !important;
 }
 
-/* --- Soft high-fidelity syntax colors --- */
+/* --- Theme-Aware soft high-fidelity syntax colors --- */
 .json-code :deep(.json-key) {
-  color: #82aaff !important; /* Soft Pale Blue */
+  color: var(--accent-blue) !important; /* Pale blue in dark, rich blue in light */
   font-weight: 500;
 }
 .json-code :deep(.json-string) {
-  color: #c3e88d !important; /* Soft Pastel Green */
+  color: var(--accent-emerald) !important; /* Soft green in dark, rich emerald in light */
 }
 .json-code :deep(.json-number) {
-  color: #f78c6c !important; /* Soft Pastel Orange */
+  color: #ef4444 !important; /* Professional amber/orange */
 }
 .json-code :deep(.json-boolean) {
-  color: #ffcb6b !important; /* Soft Pale Yellow */
+  color: var(--accent-emerald) !important;
 }
 .json-code :deep(.json-null) {
-  color: #9CA3AF !important;
+  color: var(--text-muted) !important;
 }
 
 .error-text {
