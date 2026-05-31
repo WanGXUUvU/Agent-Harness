@@ -1,13 +1,13 @@
 # STATUS
 
 ## Current Status
-- Phase: verification / review
-- Task: TASK-084 frontend modular refactoring and approval ux (前端消息树模块化重构与顶奢工具审批视觉收口)
-- Gate: review
-- Allowed Now: coach
+- Phase: implementation
+- Task: TASK-085 sidebar folder actions and ui premium upgrade (侧边栏工作区操作强化与顶奢 UI 视觉升级)
+- Gate: code / design
+- Allowed Now: auto (Frontend lane)
 - Lane: Fast
 - Blocked: None
-- Next action: TASK-084 前端消息树模块化重构与工具审批 UI 升级已 100% 完成，npm run build 构建打包全量成功，就位待审核。
+- Next action: 开始实施侧边栏项目文件夹一键创建新会话 + 批量删除功能，同时完全砍掉聊天区顶部的 workspace 绑定栏并升级 UI 风格。
 
 ## 读取规则
 - `STATUS.md` 是当前唯一权威入口，先看这里再看路线图。

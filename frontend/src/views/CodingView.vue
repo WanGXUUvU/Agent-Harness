@@ -199,25 +199,6 @@ onMounted(() => {
         <!-- 核心工作区绑定 + 聊天面板容器 -->
         <div class="chat-area-container">
           <template v-if="wActiveSessionId">
-            <!-- 💡 极致设计：高状态工作区绑定状态展示条 -->
-            <div class="workspace-binding-bar" :class="{ 'has-workspace': wActiveSession?.workspace_path }">
-              <div class="workspace-bar-left">
-                <span class="workspace-icon">📁</span>
-                <span class="workspace-title-label">Project Workspace:</span>
-                <span v-if="wActiveSession?.workspace_path" class="workspace-name-highlight">
-                  {{ wActiveSession?.workspace_name }} 
-                  <span class="workspace-path-mute">({{ wActiveSession?.workspace_path }})</span>
-                </span>
-                <span v-else class="workspace-name-warn">No Project Folder Bound (Sandbox requires folder registration)</span>
-              </div>
-              <div class="workspace-bar-right">
-                <span class="glowing-sandbox-pill">🛡️ SANDBOX ACTIVE</span>
-                <button class="ws-action-btn" @click="handleSelectWorkspaceDialog">
-                  {{ wActiveSession?.workspace_path ? 'Change Folder...' : 'Bind Folder...' }}
-                </button>
-              </div>
-            </div>
-
             <ChatPanel 
               :messages="wMessages"
               :isLoading="wIsChatLoading"

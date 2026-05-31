@@ -190,6 +190,17 @@ const getChildColor = (idx: number) => CHILD_COLORS[idx % CHILD_COLORS.length];
 const getChildrenForSession = (sessionId: string): ChildAgentInfo[] => {
   return props.childAgentsBySession?.[sessionId] ?? [];
 };
+
+const confirmDeleteFolder = (path: string | null, name: string, sessionsList: SessionSummary[]) => {
+  if (!path) return;
+  const count = sessionsList.length;
+  const message = `确定要删除项目文件夹【${name}】及其下属的所有 ${count} 个会话吗？此操作将永久清除这些对话，不可逆！`;
+  if (confirm(message)) {
+    sessionsList.forEach(session => {
+      emit('delete', session.session_id);
+    });
+  }
+};
 </script>
 
 
@@ -327,6 +338,28 @@ const getChildrenForSession = (sessionId: string): ChildAgentInfo[] => {
               </template>
             </span>
             <span class="workspace-name" :title="group.workspacePath || 'Global sessions' ">{{ group.workspaceName }}</span>
+            <div class="group-actions" v-if="group.workspacePath" @click.stop>
+              <button 
+                class="group-action-btn plus-btn" 
+                title="Create session in this folder" 
+                @click.stop="$emit('new', group.workspacePath, group.workspaceName)"
+              >
+                <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.2" fill="none">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+              </button>
+              <button 
+                class="group-action-btn delete-folder-btn" 
+                title="Delete folder and all its sessions" 
+                @click.stop="confirmDeleteFolder(group.workspacePath, group.workspaceName, group.sessions)"
+              >
+                <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+              </button>
+            </div>
           </div>
 
           <!-- Group Body (Slide in and out) -->
@@ -717,20 +750,61 @@ const getChildrenForSession = (sessionId: string): ChildAgentInfo[] => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 24px;
+  padding: 8px 16px;
   background: transparent;
   border: none;
   cursor: pointer;
   user-select: none;
-  transition: color 0.2s;
+  transition: color 0.2s, background 0.2s ease;
+  border-radius: 6px;
+  margin: 0 8px;
 }
 
 .workspace-group-header:hover {
-  background: transparent;
+  background: var(--bg-hover);
 }
 
 .workspace-group-header:hover .workspace-name {
   color: var(--text-primary);
+}
+
+.group-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.workspace-group-header:hover .group-actions {
+  opacity: 1;
+}
+
+.group-action-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.group-action-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.group-action-btn.delete-folder-btn {
+  color: var(--danger, #FF453A);
+}
+
+.group-action-btn.delete-folder-btn:hover {
+  background: rgba(255, 69, 58, 0.15);
 }
 
 .folder-arrow {
