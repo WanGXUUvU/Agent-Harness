@@ -170,6 +170,52 @@ export function useWorkspace() {
     }
   });
 
+  watch(traceRuns, (newRuns) => {
+    if (isStreaming.value || isResolvingApproval.value) return;
+
+    let pendingApproval: ApprovalInfo | null = null;
+    if (newRuns && newRuns.length > 0) {
+      for (let i = newRuns.length - 1; i >= 0; i--) {
+        const run = newRuns[i];
+        const callEvents = run.events.filter(e => e.type === 'assistant_tool_call');
+        const resultEvents = run.events.filter(e => e.type === 'tool_result' || e.type === 'tool_error');
+        const approvalEvents = run.events.filter(e => e.type === 'approval_required');
+
+        for (const appEvt of approvalEvents) {
+          const cid = appEvt.tool_call_id;
+          const hasResult = cid
+            ? resultEvents.some(r => r.tool_call_id === cid)
+            : false;
+          if (!hasResult && appEvt.content) {
+            const callEvt = cid
+              ? callEvents.find(c => c.tool_call_id === cid)
+              : callEvents.find(c => c.tool_name === appEvt.tool_name);
+            pendingApproval = {
+              approval_id: appEvt.content,
+              tool_name: appEvt.tool_name || callEvt?.tool_name || '',
+              arguments: callEvt?.content || '',
+              run_id: run.run_id,
+              tool_call_id: cid ?? undefined,
+            };
+            break;
+          }
+        }
+        if (pendingApproval) break;
+      }
+    }
+
+    if (pendingApproval) {
+      isAwaitingApproval.value = true;
+      pendingApprovalInfo.value = pendingApproval;
+    } else {
+      // ⚠️ 只有当前确实不在等待审批状态时，才清空 pendingApprovalInfo
+      // 避免 stream 结束后 isStreaming = false 触发 watcher，而 traceRuns 尚未回填导致误清空
+      if (!isAwaitingApproval.value) {
+        pendingApprovalInfo.value = null;
+      }
+    }
+  }, { deep: true, immediate: true });
+
   return {
     activeView,
     sessions,

@@ -14,6 +14,44 @@ const showPluginsModal = ref(false);
 const showAgentsModal = ref(false);
 const showSettingsModal = ref(false);
 
+const wActiveSessionId = computed(() => workspace.activeSessionId.value);
+const wActiveSession = computed(() => workspace.activeSession.value);
+const wMessages = computed(() => workspace.messages.value);
+const wIsChatLoading = computed(() => workspace.isChatLoading.value);
+const wIsCompacting = computed(() => workspace.isCompacting.value);
+const wErrorMsg = computed({
+  get: () => workspace.errorMsg.value,
+  set: (v) => { workspace.errorMsg.value = v; }
+});
+const wInfoMsg = computed({
+  get: () => workspace.infoMsg.value,
+  set: (v) => { workspace.infoMsg.value = v; }
+});
+const wAvailableAgents = computed(() => workspace.availableAgents.value);
+const wActiveAgentId = computed(() => workspace.activeAgentId.value);
+const wTraceRuns = computed(() => workspace.traceRuns.value);
+const wIsStreaming = computed(() => workspace.isStreaming.value);
+const wStreamingTimeline = computed(() => workspace.streamingTimeline.value);
+const wLastCompletedRun = computed(() => workspace.lastCompletedRun.value);
+const wIsAwaitingApproval = computed(() => workspace.isAwaitingApproval.value);
+const wPendingApprovalInfo = computed(() => workspace.pendingApprovalInfo.value);
+const wIsResolvingApproval  = computed(() => workspace.isResolvingApproval.value);
+const wPermissionProfile    = computed(() => workspace.permissionProfile.value);
+const wModelId           = computed(() => workspace.modelId.value);
+const wModelProviderId   = computed(() => workspace.modelProviderId.value);
+const wThinkingEnabled   = computed(() => workspace.thinkingEnabled.value);
+const wThinkingEffort    = computed(() => workspace.thinkingEffort.value);
+const wSkills            = computed(() => workspace.skills.value);
+const wWorkspaces        = computed(() => workspace.workspaces.value);
+const wIsInitializing    = computed(() => workspace.isInitializing.value);
+const wActiveView        = computed({
+  get: () => workspace.activeView.value,
+  set: (v) => { workspace.activeView.value = v; }
+});
+const wChildAgentsBySession = computed(() => workspace.childAgentsBySession.value);
+const wActiveModelContextLength = computed(() => workspace.activeModelContextLength.value);
+const wCustomAgents = computed(() => workspace.customAgents.value);
+
 // 子 Agent 标签页管理
 const openChildAgents = ref<ChildAgentInfo[]>([]);
 const activeChildAgentIndex = ref<number | null>(null);
@@ -132,22 +170,22 @@ onMounted(() => {
       <div class="blob blob-3"></div>
     </div>
 
-    <div v-if="workspace.isInitializing.value" class="layout-loading" style="color: var(--text-secondary);">
+    <div v-if="wIsInitializing" class="layout-loading" style="color: var(--text-secondary);">
       INITIALIZING WORKSPACE...
     </div>
     <div v-else class="app-layout">
       <!-- 1. Global Navigation -->
       <GlobalNav 
-        v-model:activeView="workspace.activeView.value"
+        v-model:activeView="wActiveView"
         @action="handleNavAction"
       />
       
       <!-- 2. Main Chat Workspace (Always visible as background) -->
       <SessionSidebar 
         :sessions="codingSessions"
-        :workspaces="workspace.workspaces.value"
-        :activeId="workspace.activeSessionId.value"
-        :childAgentsBySession="workspace.childAgentsBySession.value"
+        :workspaces="wWorkspaces"
+        :activeId="wActiveSessionId"
+        :childAgentsBySession="wChildAgentsBySession"
         @select="(id: string) => workspace.activeSessionId.value = id"
         @new="(wsPath: string | null, wsName: string | null) => workspace.createNewSession(wsPath, wsName, undefined, 'coding')"
         @delete="workspace.deleteSession"
@@ -160,57 +198,57 @@ onMounted(() => {
       <div class="main-content-container">
         <!-- 核心工作区绑定 + 聊天面板容器 -->
         <div class="chat-area-container">
-          <template v-if="workspace.activeSessionId.value">
+          <template v-if="wActiveSessionId">
             <!-- 💡 极致设计：高状态工作区绑定状态展示条 -->
-            <div class="workspace-binding-bar" :class="{ 'has-workspace': workspace.activeSession.value?.workspace_path }">
+            <div class="workspace-binding-bar" :class="{ 'has-workspace': wActiveSession?.workspace_path }">
               <div class="workspace-bar-left">
                 <span class="workspace-icon">📁</span>
                 <span class="workspace-title-label">Project Workspace:</span>
-                <span v-if="workspace.activeSession.value?.workspace_path" class="workspace-name-highlight">
-                  {{ workspace.activeSession.value?.workspace_name }} 
-                  <span class="workspace-path-mute">({{ workspace.activeSession.value?.workspace_path }})</span>
+                <span v-if="wActiveSession?.workspace_path" class="workspace-name-highlight">
+                  {{ wActiveSession?.workspace_name }} 
+                  <span class="workspace-path-mute">({{ wActiveSession?.workspace_path }})</span>
                 </span>
                 <span v-else class="workspace-name-warn">No Project Folder Bound (Sandbox requires folder registration)</span>
               </div>
               <div class="workspace-bar-right">
                 <span class="glowing-sandbox-pill">🛡️ SANDBOX ACTIVE</span>
                 <button class="ws-action-btn" @click="handleSelectWorkspaceDialog">
-                  {{ workspace.activeSession.value?.workspace_path ? 'Change Folder...' : 'Bind Folder...' }}
+                  {{ wActiveSession?.workspace_path ? 'Change Folder...' : 'Bind Folder...' }}
                 </button>
               </div>
             </div>
 
             <ChatPanel 
-              :messages="workspace.messages.value"
-              :isLoading="workspace.isChatLoading.value"
-              :isCompacting="workspace.isCompacting.value"
-              :error="workspace.errorMsg.value"
-              :infoMsg="workspace.infoMsg.value"
-              :hasSession="!!workspace.activeSessionId.value"
+              :messages="wMessages"
+              :isLoading="wIsChatLoading"
+              :isCompacting="wIsCompacting"
+              :error="wErrorMsg"
+              :infoMsg="wInfoMsg"
+              :hasSession="!!wActiveSessionId"
               :sessionTitle="sessionTitle"
-              :agents="workspace.availableAgents.value"
-              :activeAgentId="workspace.activeAgentId.value"
-              :traceRuns="workspace.traceRuns.value"
-              :isStreaming="workspace.isStreaming.value"
-              :streamingTimeline="workspace.streamingTimeline.value"
-              :lastCompletedRun="workspace.lastCompletedRun.value"
-              :isAwaitingApproval="workspace.isAwaitingApproval.value"
-              :pendingApprovalInfo="workspace.pendingApprovalInfo.value"
-              :isProcessingApproval="workspace.isResolvingApproval.value"
-              :permissionProfile="workspace.permissionProfile.value"
-              :contextTokens="workspace.activeSession.value?.context_tokens ?? 0"
-              :contextLength="workspace.activeModelContextLength.value"
-              :sessionId="workspace.activeSessionId.value"
-              :modelId="workspace.modelId.value"
-              :providerId="workspace.modelProviderId.value"
-              :thinkingEnabled="workspace.thinkingEnabled.value"
-              :thinkingEffort="workspace.thinkingEffort.value"
-              :sessionLoading="workspace.isChatLoading.value"
-              :skills="workspace.skills.value"
+              :agents="wAvailableAgents"
+              :activeAgentId="wActiveAgentId"
+              :traceRuns="wTraceRuns"
+              :isStreaming="wIsStreaming"
+              :streamingTimeline="wStreamingTimeline"
+              :lastCompletedRun="wLastCompletedRun"
+              :isAwaitingApproval="wIsAwaitingApproval"
+              :pendingApprovalInfo="wPendingApprovalInfo"
+              :isProcessingApproval="wIsResolvingApproval"
+              :permissionProfile="wPermissionProfile"
+              :contextTokens="wActiveSession?.context_tokens ?? 0"
+              :contextLength="wActiveModelContextLength"
+              :sessionId="wActiveSessionId"
+              :modelId="wModelId"
+              :providerId="wModelProviderId"
+              :thinkingEnabled="wThinkingEnabled"
+              :thinkingEffort="wThinkingEffort"
+              :sessionLoading="wIsChatLoading"
+              :skills="wSkills"
               @update:activeAgentId="(id: string) => workspace.activeAgentId.value = id"
               @send="(text: string, skillName?: string | null) => workspace.sendMessage(text, skillName)"
-              @errorDismiss="workspace.errorMsg.value = null"
-              @infoDismiss="workspace.infoMsg.value = null"
+              @errorDismiss="wErrorMsg = null"
+              @infoDismiss="wInfoMsg = null"
               @compact="workspace.compactSession"
               @reset="workspace.resetSession"
               @stop="workspace.stopStreaming"
@@ -297,9 +335,9 @@ onMounted(() => {
                     <span class="header-line"></span>
                   </div>
 
-                  <div v-if="workspace.workspaces.value.length > 0" class="recent-ws-grid">
+                  <div v-if="wWorkspaces.length > 0" class="recent-ws-grid">
                     <div 
-                      v-for="ws in workspace.workspaces.value.slice(0, 4)" 
+                      v-for="ws in wWorkspaces.slice(0, 4)" 
                       :key="ws.id" 
                       class="recent-ws-card"
                       @click="workspace.createNewSession(ws.path, ws.name, undefined, 'coding')"
@@ -340,11 +378,11 @@ onMounted(() => {
     <!-- Plugin Marketplace Modal -->
     <PluginMarketplace 
       :isOpen="showPluginsModal"
-      :skills="workspace.skills.value"
-      :error="workspace.errorMsg.value"
+      :skills="wSkills"
+      :error="wErrorMsg"
       @close="showPluginsModal = false"
       @toggle="workspace.toggleSkill"
-      @clearError="workspace.errorMsg.value = null"
+      @clearError="wErrorMsg = null"
     />
 
     <!-- Settings Modal -->

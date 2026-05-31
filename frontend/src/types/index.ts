@@ -89,6 +89,7 @@ export interface ApprovalInfo {
   tool_name: string;
   arguments: string;
   run_id: string;
+  tool_call_id?: string;
 }
 
 export interface TraceRunSummary {

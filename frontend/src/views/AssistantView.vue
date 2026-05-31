@@ -15,6 +15,44 @@ const showPluginsModal = ref(false);
 const showAgentsModal = ref(false);
 const showSettingsModal = ref(false);
 
+const wActiveSessionId = computed(() => workspace.activeSessionId.value);
+const wActiveSession = computed(() => workspace.activeSession.value);
+const wMessages = computed(() => workspace.messages.value);
+const wIsChatLoading = computed(() => workspace.isChatLoading.value);
+const wIsCompacting = computed(() => workspace.isCompacting.value);
+const wErrorMsg = computed({
+  get: () => workspace.errorMsg.value,
+  set: (v) => { workspace.errorMsg.value = v; }
+});
+const wInfoMsg = computed({
+  get: () => workspace.infoMsg.value,
+  set: (v) => { workspace.infoMsg.value = v; }
+});
+const wAvailableAgents = computed(() => workspace.availableAgents.value);
+const wActiveAgentId = computed(() => workspace.activeAgentId.value);
+const wTraceRuns = computed(() => workspace.traceRuns.value);
+const wIsStreaming = computed(() => workspace.isStreaming.value);
+const wStreamingTimeline = computed(() => workspace.streamingTimeline.value);
+const wLastCompletedRun = computed(() => workspace.lastCompletedRun.value);
+const wIsAwaitingApproval = computed(() => workspace.isAwaitingApproval.value);
+const wPendingApprovalInfo = computed(() => workspace.pendingApprovalInfo.value);
+const wIsResolvingApproval  = computed(() => workspace.isResolvingApproval.value);
+const wPermissionProfile    = computed(() => workspace.permissionProfile.value);
+const wModelId           = computed(() => workspace.modelId.value);
+const wModelProviderId   = computed(() => workspace.modelProviderId.value);
+const wThinkingEnabled   = computed(() => workspace.thinkingEnabled.value);
+const wThinkingEffort    = computed(() => workspace.thinkingEffort.value);
+const wSkills            = computed(() => workspace.skills.value);
+const wWorkspaces        = computed(() => workspace.workspaces.value);
+const wIsInitializing    = computed(() => workspace.isInitializing.value);
+const wActiveView        = computed({
+  get: () => workspace.activeView.value,
+  set: (v) => { workspace.activeView.value = v; }
+});
+const wChildAgentsBySession = computed(() => workspace.childAgentsBySession.value);
+const wActiveModelContextLength = computed(() => workspace.activeModelContextLength.value);
+const wCustomAgents = computed(() => workspace.customAgents.value);
+
 // 子 Agent 标签页管理
 const openChildAgents = ref<ChildAgentInfo[]>([]);
 const activeChildAgentIndex = ref<number | null>(null);
@@ -133,22 +171,22 @@ onMounted(() => {
       <div class="blob blob-3"></div>
     </div>
 
-    <div v-if="workspace.isInitializing.value" class="layout-loading" style="color: var(--text-secondary);">
+    <div v-if="wIsInitializing" class="layout-loading" style="color: var(--text-secondary);">
       INITIALIZING WORKSPACE...
     </div>
     <div v-else class="app-layout">
       <!-- 1. Global Navigation -->
       <GlobalNav 
-        v-model:activeView="workspace.activeView.value"
+        v-model:activeView="wActiveView"
         @action="handleNavAction"
       />
       
       <!-- 2. Main Chat Workspace (Always visible as background) -->
       <SessionSidebar 
         :sessions="assistantSessions"
-        :workspaces="workspace.workspaces.value"
-        :activeId="workspace.activeSessionId.value"
-        :childAgentsBySession="workspace.childAgentsBySession.value"
+        :workspaces="wWorkspaces"
+        :activeId="wActiveSessionId"
+        :childAgentsBySession="wChildAgentsBySession"
         @select="(id: string) => workspace.activeSessionId.value = id"
         @new="(wsPath: string | null, wsName: string | null) => workspace.createNewSession(wsPath, wsName, undefined, 'assistant')"
         @delete="workspace.deleteSession"
@@ -160,42 +198,42 @@ onMounted(() => {
       <!-- 3. 主聊天面板 + 子 Agent 右侧面板 -->
       <div class="main-content-container">
         <ChatPanel 
-          :messages="workspace.messages.value"
-          :isLoading="workspace.isChatLoading.value"
-          :isCompacting="workspace.isCompacting.value"
-          :error="workspace.errorMsg.value"
-          :infoMsg="workspace.infoMsg.value"
-          :hasSession="!!workspace.activeSessionId.value"
+          :messages="wMessages"
+          :isLoading="wIsChatLoading"
+          :isCompacting="wIsCompacting"
+          :error="wErrorMsg"
+          :infoMsg="wInfoMsg"
+          :hasSession="!!wActiveSessionId"
           :sessionTitle="sessionTitle"
-          :agents="workspace.availableAgents.value"
-          :activeAgentId="workspace.activeAgentId.value"
-          :traceRuns="workspace.traceRuns.value"
-          :isStreaming="workspace.isStreaming.value"
-          :streamingTimeline="workspace.streamingTimeline.value"
-          :lastCompletedRun="workspace.lastCompletedRun.value"
-          :isAwaitingApproval="workspace.isAwaitingApproval.value"
-          :pendingApprovalInfo="workspace.pendingApprovalInfo.value"
-          :isProcessingApproval="workspace.isResolvingApproval.value"
-          :permissionProfile="workspace.permissionProfile.value"
-          :contextTokens="workspace.activeSession.value?.context_tokens ?? 0"
-          :contextLength="workspace.activeModelContextLength.value"
-          :sessionId="workspace.activeSessionId.value"
-          :modelId="workspace.modelId.value"
-          :providerId="workspace.modelProviderId.value"
-          :thinkingEnabled="workspace.thinkingEnabled.value"
-          :thinkingEffort="workspace.thinkingEffort.value"
-          :sessionLoading="workspace.isChatLoading.value"
-          :skills="workspace.skills.value"
+          :agents="wAvailableAgents"
+          :activeAgentId="wActiveAgentId"
+          :traceRuns="wTraceRuns"
+          :isStreaming="wIsStreaming"
+          :streamingTimeline="wStreamingTimeline"
+          :lastCompletedRun="wLastCompletedRun"
+          :isAwaitingApproval="wIsAwaitingApproval"
+          :pendingApprovalInfo="wPendingApprovalInfo"
+          :isProcessingApproval="wIsResolvingApproval"
+          :permissionProfile="wPermissionProfile"
+          :contextTokens="wActiveSession?.context_tokens ?? 0"
+          :contextLength="wActiveModelContextLength"
+          :sessionId="wActiveSessionId"
+          :modelId="wModelId"
+          :providerId="wModelProviderId"
+          :thinkingEnabled="wThinkingEnabled"
+          :thinkingEffort="wThinkingEffort"
+          :sessionLoading="wIsChatLoading"
+          :skills="wSkills"
           @update:activeAgentId="(id: string) => workspace.activeAgentId.value = id"
           @send="(text: string, skillName?: string | null) => workspace.sendMessage(text, skillName)"
-          @errorDismiss="workspace.errorMsg.value = null"
-          @infoDismiss="workspace.infoMsg.value = null"
+          @errorDismiss="wErrorMsg = null"
+          @infoDismiss="wInfoMsg = null"
           @compact="workspace.compactSession"
           @reset="workspace.resetSession"
           @stop="workspace.stopStreaming"
           @approve="workspace.approveAction"
           @reject="workspace.rejectAction"
-          @approveAll="workspace.approveAllAction"
+          @approve-all="workspace.approveAllAction"
           @update:permissionProfile="workspace.updatePermissionProfile"
           @update:model="(val: { modelId: string | null; providerId: number | null }) => workspace.updateModelConfig({ model_id: val.modelId, model_provider_id: val.providerId })"
           @update:thinkingEnabled="(val: boolean) => workspace.updateModelConfig({ thinking_enabled: val })"
@@ -220,17 +258,17 @@ onMounted(() => {
     <!-- Plugin Marketplace Modal -->
     <PluginMarketplace 
       :isOpen="showPluginsModal"
-      :skills="workspace.skills.value"
-      :error="workspace.errorMsg.value"
+      :skills="wSkills"
+      :error="wErrorMsg"
       @close="showPluginsModal = false"
       @toggle="workspace.toggleSkill"
-      @clearError="workspace.errorMsg.value = null"
+      @clearError="wErrorMsg = null"
     />
 
     <!-- Agent Manager Modal -->
     <AgentManager
       :isOpen="showAgentsModal"
-      :agents="workspace.customAgents.value"
+      :agents="wCustomAgents"
       @close="showAgentsModal = false"
       @save="workspace.saveAgent"
       @delete="workspace.deleteAgent"
