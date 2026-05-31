@@ -373,33 +373,30 @@ const handleCodeBlockClick = (e: MouseEvent) => {
 
 /* ── 链式调用外部 Trace 容器 ── */
 .history-trace-container {
-  margin: 12px 0;
-  background: rgba(var(--bg-panel-rgb, 15, 15, 19), 0.3) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
+  margin: 8px 0;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.4);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: none !important;
+  transition: all 0.2s ease;
   width: 100%;
 }
 
 .history-trace-container:hover {
-  border-color: rgba(255, 255, 255, 0.09);
-  background: rgba(var(--bg-panel-rgb, 15, 15, 19), 0.45) !important;
+  background: transparent !important;
 }
 
 .history-trace-container.has-error {
-  background: rgba(255, 69, 58, 0.03) !important;
-  border-color: rgba(255, 69, 58, 0.25);
-  box-shadow: 0 4px 20px -5px rgba(255, 69, 58, 0.15);
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .history-trace-container.has-error:hover {
-  border-color: rgba(255, 69, 58, 0.45);
-  background: rgba(255, 69, 58, 0.05) !important;
-  box-shadow: 0 4px 24px -3px rgba(255, 69, 58, 0.2);
+  background: transparent !important;
 }
 
 .timeline-toggle {
@@ -409,11 +406,11 @@ const handleCodeBlockClick = (e: MouseEvent) => {
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 10px 14px;
+  padding: 6px 0;
   width: 100%;
   text-align: left;
   position: relative;
-  transition: background 0.15s;
+  transition: all 0.2s ease;
   outline: none;
   appearance: none;
   -webkit-appearance: none;
@@ -421,32 +418,11 @@ const handleCodeBlockClick = (e: MouseEvent) => {
 }
 
 .timeline-toggle:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: transparent;
 }
 
 .toggle-left-indicator {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: transparent;
-  transition: background 0.2s;
-}
-
-.toggle-left-indicator.status-success {
-  background: #0FB97F;
-  box-shadow: 0 0 8px rgba(15, 185, 127, 0.4);
-}
-
-.toggle-left-indicator.status-running {
-  background: #FFAA00;
-  box-shadow: 0 0 8px rgba(255, 170, 0, 0.4);
-}
-
-.toggle-left-indicator.status-error {
-  background: #ff453a;
-  box-shadow: 0 0 8px rgba(255, 69, 58, 0.6);
+  display: none;
 }
 
 .evt-icon-box.header-icon-box {
@@ -458,40 +434,38 @@ const handleCodeBlockClick = (e: MouseEvent) => {
   justify-content: center;
   flex-shrink: 0;
   color: var(--text-secondary, #A1A1AA);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: transparent !important;
+  border: none !important;
   transition: all 0.2s ease;
   margin-right: 4px;
 }
 
 .evt-icon-box.header-icon-box.status-success {
   color: #34D399;
-  background: rgba(52, 211, 153, 0.06);
-  border-color: rgba(52, 211, 153, 0.15);
 }
 
 .evt-icon-box.header-icon-box.status-running {
   color: #FBBF24;
-  background: rgba(251, 191, 36, 0.06);
-  border-color: rgba(251, 191, 36, 0.15);
 }
 
 .evt-icon-box.header-icon-box.status-error {
   color: #F87171;
-  background: rgba(248, 113, 113, 0.06);
-  border-color: rgba(248, 113, 113, 0.15);
 }
 
 .toggle-verb {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-primary);
-  font-family: var(--font-mono, monospace);
-  letter-spacing: 0.01em;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-family: inherit;
+  letter-spacing: 0;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.toggle-verb:hover {
+  color: var(--text-primary);
 }
 
 .toggle-count {
@@ -530,7 +504,7 @@ const handleCodeBlockClick = (e: MouseEvent) => {
 .tool-tree-wrapper.expanded {
   grid-template-rows: 1fr;
   opacity: 1;
-  padding: 8px 14px 12px 20px;
+  padding: 4px 0 10px 0;
 }
 
 .tool-tree-inner {
@@ -539,22 +513,6 @@ const handleCodeBlockClick = (e: MouseEvent) => {
   flex-direction: column;
   gap: 6px;
   position: relative;
-}
-
-.tool-tree-inner::before {
-  content: "";
-  position: absolute;
-  left: 31px;
-  top: 0;
-  bottom: 16px;
-  width: 1px;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.02) 100%
-  );
-  z-index: 1;
-  pointer-events: none;
 }
 
 .stopped-label {

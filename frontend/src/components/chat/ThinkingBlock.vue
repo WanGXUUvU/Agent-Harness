@@ -57,7 +57,6 @@ const hasPendingApprovalInChunk = computed(() => {
       <!-- 激光呼吸心跳灯 -->
       <span class="thinking-heartbeat"></span>
       <span class="toggle-verb thinking-verb">思考过程</span>
-      <span v-if="countThinkingTools > 0" class="toggle-count">含 {{ countThinkingTools }} 次工具调用</span>
       
       <!-- 如果包含挂起审批，增加醒目的橙色指示器 -->
       <span v-if="hasPendingApprovalInChunk" class="pending-warning-pill font-mono">
@@ -98,7 +97,7 @@ const hasPendingApprovalInChunk = computed(() => {
 
 <style scoped>
 .thinking-container {
-  margin: 6px 0 10px;
+  margin: 6px 0 8px;
   width: 100%;
 }
 
@@ -106,51 +105,24 @@ const hasPendingApprovalInChunk = computed(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.015);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: transparent;
+  border: none;
   cursor: pointer;
-  padding: 10px 14px;
+  padding: 6px 0;
   width: 100%;
   text-align: left;
   position: relative;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 8px;
+  transition: all 0.2s ease;
   outline: none;
-  font-family: var(--font-mono, monospace);
-  color: var(--text-primary);
+  font-family: inherit;
+  color: var(--text-muted);
   appearance: none;
   -webkit-appearance: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.timeline-toggle::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 25%;
-  bottom: 25%;
-  width: 3px;
-  border-radius: 0 2px 2px 0;
-  background: var(--text-muted);
-  transition: all 0.25s ease;
-  opacity: 0.4;
+  box-shadow: none;
 }
 
 .timeline-toggle:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25), 0 0 8px rgba(255, 255, 255, 0.03);
-}
-
-.timeline-toggle:hover::before {
-  background: var(--accent);
-  opacity: 0.9;
-  box-shadow: 0 0 6px var(--accent);
-}
-
-.timeline-toggle:focus-visible {
-  border-color: rgba(255, 255, 255, 0.25);
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
 }
 
 .thinking-heartbeat {
@@ -170,18 +142,7 @@ const hasPendingApprovalInChunk = computed(() => {
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--text-secondary);
-}
-
-.toggle-count {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-muted);
-  font-family: var(--font-mono, monospace);
-  padding: 2px 6px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
+  color: inherit;
 }
 
 .pending-warning-pill {
@@ -233,7 +194,7 @@ const hasPendingApprovalInChunk = computed(() => {
 .tool-tree-wrapper.expanded {
   grid-template-rows: 1fr;
   opacity: 1;
-  padding: 8px 14px 12px 20px;
+  padding: 4px 0 10px 0;
 }
 
 .tool-tree-inner {
@@ -244,40 +205,23 @@ const hasPendingApprovalInChunk = computed(() => {
   position: relative;
 }
 
-.tool-tree-inner::before {
-  content: "";
-  position: absolute;
-  left: 31px;
-  top: 0;
-  bottom: 16px;
-  width: 1px;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.02) 100%
-  );
-  z-index: 1;
-  pointer-events: none;
-}
-
 .thinking-text {
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--text-secondary);
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: var(--font-mono, monospace);
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.006);
-  border-left: 2px solid rgba(255, 255, 255, 0.08);
-  border-radius: 0 6px 6px 0;
+  font-family: inherit;
+  padding: 6px 0 8px 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   opacity: 0.85;
 }
 
 .thinking-embedded-tools {
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  margin-top: 4px;
+  padding-top: 4px;
   display: flex;
   flex-direction: column;
   gap: 4px;

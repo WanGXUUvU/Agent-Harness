@@ -499,12 +499,10 @@ const displayedAesthetic = computed(() => {
 <style scoped>
 /* ── 工具调用卡片样式 ── */
 .tool-exec-card {
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--bg-panel) 95%, var(--text-primary));
-  border: 1px solid var(--border-dim);
-  overflow: hidden;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  margin-bottom: 8px;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin-bottom: 6px;
   position: relative;
   width: 100%;
 }
@@ -513,82 +511,56 @@ body.theme-default .tool-exec-card,
 body.theme-cyberpunk .tool-exec-card,
 body.theme-emerald .tool-exec-card,
 body.theme-amber .tool-exec-card {
-  background: rgba(255, 255, 255, 0.015);
-  border-color: rgba(255, 255, 255, 0.05);
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .tool-exec-card:hover {
-  background: color-mix(in srgb, var(--bg-panel) 92%, var(--text-primary));
-  border-color: var(--border-strong);
+  background: transparent !important;
 }
 
 body.theme-default .tool-exec-card:hover,
 body.theme-cyberpunk .tool-exec-card:hover,
 body.theme-emerald .tool-exec-card:hover,
 body.theme-amber .tool-exec-card:hover {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: transparent !important;
 }
 
 .tool-exec-card.is-expanded {
-  background: color-mix(in srgb, var(--bg-panel) 90%, var(--text-primary));
-  border-color: var(--border-strong);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 body.theme-default .tool-exec-card.is-expanded,
 body.theme-cyberpunk .tool-exec-card.is-expanded,
 body.theme-emerald .tool-exec-card.is-expanded,
 body.theme-amber .tool-exec-card.is-expanded {
-  background: rgba(255, 255, 255, 0.025);
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .tool-exec-card.has-error {
-  background: rgba(255, 69, 58, 0.02);
-  border-color: rgba(255, 69, 58, 0.18);
+  background: transparent !important;
 }
 
 .tool-exec-card.has-error:hover {
-  border-color: rgba(255, 69, 58, 0.35);
-  background: rgba(255, 69, 58, 0.04);
+  background: transparent !important;
 }
 
 .tool-exec-header {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 6px 0;
   cursor: pointer;
   user-select: none;
   position: relative;
 }
 
-/* 左侧发光指示线 */
+/* 左侧发光指示线 - 隐藏以求极致自然扁平 */
 .tool-status-bar {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: transparent;
-  transition: all 0.2s ease;
-}
-
-.tool-status-bar.status-success {
-  background: var(--accent-emerald, #34c759);
-  box-shadow: 0 0 6px var(--accent-emerald, #34c759);
-}
-
-.tool-status-bar.status-running {
-  background: var(--warning-amber, #FBBF24);
-  box-shadow: 0 0 6px var(--warning-amber, #FBBF24);
-}
-
-.tool-status-bar.status-error {
-  background: var(--danger, #ff453a);
-  box-shadow: 0 0 6px var(--danger, #ff453a);
+  display: none;
 }
 
 .tool-exec-icon-box {
@@ -599,8 +571,8 @@ body.theme-amber .tool-exec-card.is-expanded {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: rgba(0, 0, 0, 0.04);
-  border: 1px solid var(--border-dim);
+  background: transparent !important;
+  border: none !important;
   position: relative;
   transition: all 0.2s ease;
 }
@@ -609,23 +581,20 @@ body.theme-default .tool-exec-icon-box,
 body.theme-cyberpunk .tool-exec-icon-box,
 body.theme-emerald .tool-exec-icon-box,
 body.theme-amber .tool-exec-icon-box {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.06);
+  background: transparent !important;
+  border: none !important;
 }
 
 .tool-exec-icon-box.status-success {
-  background: rgba(52, 199, 89, 0.06);
-  border-color: rgba(52, 199, 89, 0.15);
+  background: transparent !important;
 }
 
 .tool-exec-icon-box.status-running {
-  background: rgba(251, 191, 36, 0.06);
-  border-color: rgba(251, 191, 36, 0.15);
+  background: transparent !important;
 }
 
 .tool-exec-icon-box.status-error {
-  background: rgba(255, 69, 58, 0.06);
-  border-color: rgba(255, 69, 58, 0.15);
+  background: transparent !important;
 }
 
 .tool-exec-name {
@@ -642,8 +611,13 @@ body.theme-amber .tool-exec-icon-box {
   font-size: 13px !important;
   font-weight: 500 !important;
   letter-spacing: 0px !important;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   text-transform: none !important;
+  transition: color 0.2s ease;
+}
+
+.cute-status-text:hover {
+  color: var(--text-primary);
 }
 
 .cute-status-text.status-error {
@@ -651,7 +625,7 @@ body.theme-amber .tool-exec-icon-box {
 }
 
 .cute-emoji-icon {
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1;
 }
 
@@ -722,9 +696,9 @@ body.theme-amber .tool-exec-icon-box {
 }
 
 .tool-exec-body {
-  border-top: 1px solid var(--border-dim);
-  padding: 12px;
-  background: rgba(0, 0, 0, 0.02);
+  border-top: none !important;
+  padding: 4px 0 10px 34px;
+  background: transparent !important;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -734,8 +708,8 @@ body.theme-default .tool-exec-body,
 body.theme-cyberpunk .tool-exec-body,
 body.theme-emerald .tool-exec-body,
 body.theme-amber .tool-exec-body {
-  background: rgba(0, 0, 0, 0.12);
-  border-top-color: rgba(255, 255, 255, 0.04);
+  background: transparent !important;
+  border-top-color: transparent !important;
 }
 
 .tool-exec-section {
