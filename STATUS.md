@@ -1,13 +1,13 @@
 # STATUS
 
 ## Current Status
-- Phase: implementation
-- Task: TASK-083 tool batch approval and progress closure (工具批次审批状态机与并行进度闭环收口)
-- Gate: code / debug
+- Phase: verification / review
+- Task: TASK-084 frontend modular refactoring and approval ux (前端消息树模块化重构与顶奢工具审批视觉收口)
+- Gate: review
 - Allowed Now: coach
 - Lane: Fast
 - Blocked: None
-- Next action: 已进入 Coach 模式开始教学 TASK-083。第一步对准切片 1 (Progress 真闭环接通) 的核心事实，随后展开 Before/After 核心伪代码对比。
+- Next action: TASK-084 前端消息树模块化重构与工具审批 UI 升级已 100% 完成，npm run build 构建打包全量成功，就位待审核。
 
 ## 读取规则
 - `STATUS.md` 是当前唯一权威入口，先看这里再看路线图。
