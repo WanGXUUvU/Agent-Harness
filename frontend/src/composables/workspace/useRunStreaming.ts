@@ -8,6 +8,7 @@ import type {
   TraceRunSummary,
 } from '../../types';
 import type { UiAgentOption } from '../../types/ui';
+import { upsertPendingApproval } from '../../utils/approvalQueue';
 import { reconstructUiMessages, writeTimelineToStore } from './helpers';
 
 interface RunStreamingOptions {
@@ -22,6 +23,7 @@ interface RunStreamingOptions {
   errorMsg: Ref<string | null>;
   isAwaitingApproval: Ref<boolean>;
   pendingApprovalInfo: Ref<ApprovalInfo | null>;
+  pendingApprovalInfos: Ref<ApprovalInfo[]>;
   activeAgent: ComputedRef<UiAgentOption | null>;
   pendingRunId: Ref<string | null>;
   pendingUserInput: Ref<string>;
@@ -44,6 +46,7 @@ export function useRunStreaming(options: RunStreamingOptions) {
     errorMsg,
     isAwaitingApproval,
     pendingApprovalInfo,
+    pendingApprovalInfos,
     activeAgent,
     pendingRunId,
     pendingUserInput,
@@ -76,6 +79,11 @@ export function useRunStreaming(options: RunStreamingOptions) {
           capturedRunId = frame.data.run_id;
           pendingRunId.value = capturedRunId;
         } else if (frame.type === 'delta') {
+          // 打字机效果流式延迟支持
+          const delayMs = parseInt(localStorage.getItem('settings-stream-delay') || '10');
+          if (delayMs > 0) {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+          }
           const tl = streamingTimeline.value;
           const last = tl[tl.length - 1];
           if (last?.kind === 'text') {
@@ -85,6 +93,11 @@ export function useRunStreaming(options: RunStreamingOptions) {
             streamingTimeline.value = [...tl, { kind: 'text', content: frame.data.content }];
           }
         } else if (frame.type === 'thinking_delta') {
+          // 打字机效果流式延迟支持
+          const delayMs = parseInt(localStorage.getItem('settings-stream-delay') || '10');
+          if (delayMs > 0) {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+          }
           const tl = streamingTimeline.value;
           const last = tl[tl.length - 1];
           if (last?.kind === 'thinking') {
@@ -99,16 +112,24 @@ export function useRunStreaming(options: RunStreamingOptions) {
           }
           if (frame.data.type === 'approval_required' && frame.data.content) {
             const approvalId = frame.data.content;
-            pendingApprovalInfo.value = {
+            const pendingApproval = {
               approval_id: approvalId,
               tool_name: frame.data.tool_name ?? '',
               arguments: '',
               run_id: capturedRunId ?? '',
+              tool_call_id: frame.data.tool_call_id ?? undefined,
             };
+            pendingApprovalInfos.value = upsertPendingApproval(pendingApprovalInfos.value, pendingApproval);
+            pendingApprovalInfo.value = pendingApprovalInfos.value[0] ?? null;
             api.getApproval(approvalId).then(info => {
-              if (pendingApprovalInfo.value?.approval_id === approvalId) {
-                pendingApprovalInfo.value = { ...pendingApprovalInfo.value, arguments: info.arguments };
-              }
+              pendingApprovalInfos.value = upsertPendingApproval(pendingApprovalInfos.value, {
+                approval_id: approvalId,
+                tool_name: info.tool_name ?? pendingApproval.tool_name,
+                arguments: info.arguments ?? pendingApproval.arguments,
+                run_id: capturedRunId ?? pendingApproval.run_id,
+                tool_call_id: (info as any).tool_call_id ?? pendingApproval.tool_call_id,
+              });
+              pendingApprovalInfo.value = pendingApprovalInfos.value[0] ?? null;
             }).catch(() => {});
           }
           if (activeSessionId.value) {
@@ -116,21 +137,28 @@ export function useRunStreaming(options: RunStreamingOptions) {
           }
         } else if (frame.type === 'paused') {
           isAwaitingApproval.value = true;
+          pendingApprovalInfo.value = pendingApprovalInfos.value[0] ?? pendingApprovalInfo.value;
           const partialTimeline = [...streamingTimeline.value];
           if (capturedRunId) {
             writeTimelineToStore(capturedRunId, partialTimeline);
           }
-          const partialText = partialTimeline
-            .filter(i => i.kind === 'text')
-            .map(i => i.content)
-            .join('');
           const newMsgs = [...currentMessages.value];
-          if (partialText) {
+          // ── 只更新当前 run 对应的占位消息或 run_id 匹配的 assistant 消息 ──
+          // 绝不修改其他历史轮次的 assistant 消息，避免审批 UI 出现在错误的对话里
+          if (partialTimeline.length > 0) {
+            let found = false;
             for (let i = newMsgs.length - 1; i >= 0; i--) {
-              if (newMsgs[i].role === 'assistant') {
-                newMsgs[i] = { ...newMsgs[i], timeline: partialTimeline };
+              const msg = newMsgs[i];
+              if (msg.role === 'assistant' &&
+                  (msg.content === null || (capturedRunId && msg.run_id === capturedRunId))) {
+                newMsgs[i] = { ...msg, timeline: partialTimeline };
+                found = true;
                 break;
               }
+            }
+            // 没有找到本轮占位消息（纯工具流首次 paused），插入新占位
+            if (!found) {
+              newMsgs.push({ role: 'assistant', content: null, timeline: partialTimeline });
             }
           }
           currentMessages.value = newMsgs;

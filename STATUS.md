@@ -1,13 +1,13 @@
 # STATUS
 
 ## Current Status
-- Phase: implementation
-- Task: TASK-085 sidebar folder actions and ui premium upgrade (侧边栏工作区操作强化与顶奢 UI 视觉升级)
-- Gate: code / design
-- Allowed Now: auto (Frontend lane)
+- Phase: planning
+- Task: TASK-077 agent cognitive and safety evolution (智能体认知与安全深度演进)
+- Gate: design / code
+- Allowed Now: coach (Backend lane) / auto (Frontend lane)
 - Lane: Fast
 - Blocked: None
-- Next action: 开始实施侧边栏项目文件夹一键创建新会话 + 批量删除功能，同时完全砍掉聊天区顶部的 workspace 绑定栏并升级 UI 风格。
+- Next action: 按照黄金四步教学法推进 TASK-077 切片 1：工具自愈中间件的设计与落地。
 
 ## 读取规则
 - `STATUS.md` 是当前唯一权威入口，先看这里再看路线图。
@@ -22,6 +22,7 @@
 
 | Date | Event | Gate / Phase | Notes |
 |------|-------|--------------|-------|
+| 2026-06-02 | TASK-083/084/085 归档 | Verify / Review | 成功实现并行工具批次审批状态机与进度闭环、MessageList 模块化重构与审批 UX 升级、侧边栏项目文件夹快捷操作与聊天区顶部绑定栏净化，前端构建与测试 100% 绿灯。 |
 | 2026-05-30 | 已完成任务卡归档 | — | 将 TASK-073/074/075/076/078/079/080/081/082 移入 `specs/done/`。 |
 | 2026-05-30 | `TASK-076` 并发工具执行与流式进度流完美收口 | Verify / Review | 成功实现基于 `asyncio.gather` 与 `asyncio.Queue` 管道的流式进度并发广播，完成跨线程 `run_coroutine_threadsafe` 自愈通信，以及审批拦截时 Task 优雅 Cancel 安全手刹，前后端 Vue 3 呼吸动效完美打包编译，96 项单测全绿通过。 |
 | 2026-05-30 | `TASK-082` 后端核心及周边链路风格收敛完成 | Verify / Review | 完成两轮风格大扫除：统一 execution/context/memory 核心层及 api/settings/tools 主链路所有文件的模块头注释与 docstring 模板，替换所有的“教学散文”；`ContextAssembler` 抽出工作区文本读取 helper；`black`、`ruff check`、96 项 unit/integration tests 全绿通过。 |

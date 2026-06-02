@@ -11,18 +11,20 @@ interface GroupedToolExecution {
   error?: string;
   duration: string;
   groupCount?: number;
+  approvalInfo?: ApprovalInfo | null;
 }
 
 const props = defineProps<{
   exec: GroupedToolExecution;
   isAwaitingApproval?: boolean;
   pendingApprovalInfo?: ApprovalInfo | null;
+  pendingApprovalInfos?: ApprovalInfo[];
   isProcessingApproval?: boolean;
 }>();
 
 const emit = defineEmits<{
-  (e: 'approve'): void;
-  (e: 'reject'): void;
+  (e: 'approve', approvalId?: string): void;
+  (e: 'reject', approvalId?: string): void;
   (e: 'approve-all'): void;
 }>();
 
@@ -68,28 +70,10 @@ const highlightJson = (json: string): string => {
 
 // Check if this specific tool card is currently waiting for approval
 const isThisWaitingApproval = computed(() => {
-  if (props.exec.status === 'awaiting_approval') return true;
-  if (props.isAwaitingApproval && props.pendingApprovalInfo) {
-    const pInfo = props.pendingApprovalInfo;
-    const cid = pInfo.tool_call_id;
-    if (cid && cid === props.exec.id) return true;
-    if (!cid && pInfo.tool_name === props.exec.tool_name) return true;
-  }
-  return false;
+  return props.exec.status === 'awaiting_approval' && !!props.exec.approvalInfo;
 });
 
-// Code block copy handling
-const copyState = ref<Record<string, boolean>>({});
-const handleCopy = (key: string, text: string) => {
-  navigator.clipboard.writeText(text).then(() => {
-    copyState.value = { ...copyState.value, [key]: true };
-    setTimeout(() => {
-      copyState.value = { ...copyState.value, [key]: false };
-    }, 2000);
-  }).catch(err => {
-    console.error('Copy failed:', err);
-  });
-};
+
 
 const toolCnNameMap: Record<string, string> = {
   write_file: '写入文件 (write_file)',
@@ -187,19 +171,7 @@ const statusText = computed(() => {
       <div class="tool-exec-section" v-if="exec.args && Object.keys(exec.args).length > 0">
         <div class="ide-code-container">
           <div class="ide-code-header">
-            <div class="mac-control-dots">
-              <span class="dot close"></span>
-              <span class="dot minimize"></span>
-              <span class="dot expand"></span>
-            </div>
             <span class="ide-tab-title">parameters.json</span>
-            <button class="ide-copy-btn" :class="{ copied: copyState['args'] }" @click="handleCopy('args', formatJson(exec.args))">
-              <svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" stroke-width="2.5" fill="none">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-              </svg>
-              <span class="copy-label">{{ copyState['args'] ? 'Copied' : 'Copy' }}</span>
-            </button>
           </div>
           <pre class="json-code"><code v-html="highlightJson(formatJson(exec.args))"></code></pre>
         </div>
@@ -215,19 +187,7 @@ const statusText = computed(() => {
       <div class="tool-exec-section" v-if="exec.status === 'success' && exec.result">
         <div class="ide-code-container">
           <div class="ide-code-header">
-            <div class="mac-control-dots">
-              <span class="dot close"></span>
-              <span class="dot minimize"></span>
-              <span class="dot expand"></span>
-            </div>
             <span class="ide-tab-title">response.log</span>
-            <button class="ide-copy-btn" :class="{ copied: copyState['result'] }" @click="handleCopy('result', formatJson(exec.result))">
-              <svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" stroke-width="2.5" fill="none">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-              </svg>
-              <span class="copy-label">{{ copyState['result'] ? 'Copied' : 'Copy' }}</span>
-            </button>
           </div>
           <pre class="json-code"><code v-html="highlightJson(formatJson(exec.result))"></code></pre>
         </div>
@@ -249,7 +209,7 @@ const statusText = computed(() => {
           <button 
             class="approval-btn reject-btn" 
             :disabled="isProcessingApproval"
-            @click="emit('reject')"
+            @click="emit('reject', exec.approvalInfo?.approval_id)"
           >
             <span class="btn-hover-glow"></span>
             <span class="btn-text">拒绝 (Reject)</span>
@@ -270,7 +230,7 @@ const statusText = computed(() => {
           <button 
             class="approval-btn approve-btn" 
             :disabled="isProcessingApproval"
-            @click="emit('approve')"
+            @click="emit('approve', exec.approvalInfo?.approval_id)"
           >
             <span class="btn-hover-glow"></span>
             <span class="btn-text">批准 (Approve)</span>
@@ -531,25 +491,6 @@ body.theme-amber .tool-exec-body {
   user-select: none;
 }
 
-.mac-control-dots {
-  display: flex;
-  gap: 5px;
-  align-items: center;
-  margin-right: 14px;
-}
-
-.mac-control-dots .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  display: inline-block;
-  opacity: 0.85;
-}
-
-.mac-control-dots .dot.close { background-color: #ff5f56; }
-.mac-control-dots .dot.minimize { background-color: #ffbd2e; }
-.mac-control-dots .dot.expand { background-color: #27c93f; }
-
 .ide-tab-title {
   font-size: 10px;
   font-weight: 500;
@@ -557,32 +498,6 @@ body.theme-amber .tool-exec-body {
   color: var(--text-secondary) !important;
   letter-spacing: 0.5px;
   text-transform: lowercase;
-}
-
-.ide-copy-btn {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--text-muted) !important;
-  transition: all 0.2s ease;
-  font-size: 10px;
-  font-family: var(--font-sans);
-  outline: none;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.ide-copy-btn:hover {
-  color: var(--text-primary) !important;
-  background: var(--bg-hover) !important;
-}
-
-.ide-copy-btn.copied {
-  color: var(--accent-emerald, #34c759) !important;
 }
 
 .json-code {

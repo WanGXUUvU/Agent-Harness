@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import type { ApprovalInfo } from '../../types';
 import type { TimelineChunk, MergedTimelineItem, ThinkingSegment } from './types';
+import { findPendingApprovalForTool } from '../../utils/approvalQueue';
 import ToolTree from './ToolTree.vue';
 
 const props = defineProps<{
@@ -9,13 +10,14 @@ const props = defineProps<{
   isCollapsed: boolean;
   isAwaitingApproval?: boolean;
   pendingApprovalInfo?: ApprovalInfo | null;
+  pendingApprovalInfos?: ApprovalInfo[];
   isProcessingApproval?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'toggle'): void;
-  (e: 'approve'): void;
-  (e: 'reject'): void;
+  (e: 'approve', approvalId?: string): void;
+  (e: 'reject', approvalId?: string): void;
   (e: 'approve-all'): void;
 }>();
 
@@ -31,19 +33,27 @@ const countThinkingTools = computed((): number => {
 
 // 判断本思考块内是否包含当前等待审批的工具（控制黄色 WAITING badge）
 const hasPendingApprovalInChunk = computed(() => {
-  if (!props.isAwaitingApproval || !props.pendingApprovalInfo) return false;
+  const pendingApprovals = props.pendingApprovalInfos ?? (props.pendingApprovalInfo ? [props.pendingApprovalInfo] : []);
+  if (!props.isAwaitingApproval || pendingApprovals.length === 0) return false;
   if (props.chunk.type !== 'thinking' || !props.chunk.segments) return false;
   
   return props.chunk.segments.some((seg: ThinkingSegment) => {
     if (seg.kind !== 'tools') return false;
     return seg.items.some((item: MergedTimelineItem) => {
-      const pInfo = props.pendingApprovalInfo!;
       if (item.kind === 'event') {
-        const cid = item.event.tool_call_id;
-        if (cid && cid === pInfo.tool_call_id) return true;
-        if (!cid && item.event.tool_name === pInfo.tool_name) return true;
+        return !!findPendingApprovalForTool(
+          pendingApprovals,
+          item.event.tool_call_id,
+          item.event.tool_name,
+          item.event.type === 'approval_required' ? item.event.content : null,
+        );
       } else if (item.kind === 'event_group') {
-        return item.tool_name === pInfo.tool_name;
+        return item.raw_events.some(event => !!findPendingApprovalForTool(
+          pendingApprovals,
+          event.tool_call_id,
+          event.tool_name,
+          event.type === 'approval_required' ? event.content : null,
+        ));
       }
       return false;
     });
@@ -79,9 +89,10 @@ const hasPendingApprovalInChunk = computed(() => {
                 :items="seg.items"
                 :isAwaitingApproval="isAwaitingApproval"
                 :pendingApprovalInfo="pendingApprovalInfo"
+                :pendingApprovalInfos="pendingApprovalInfos"
                 :isProcessingApproval="isProcessingApproval"
-                @approve="emit('approve')"
-                @reject="emit('reject')"
+                @approve="emit('approve', $event)"
+                @reject="emit('reject', $event)"
                 @approve-all="emit('approve-all')"
               />
             </div>

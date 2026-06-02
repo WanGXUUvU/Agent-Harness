@@ -32,9 +32,11 @@ const wActiveAgentId = computed(() => workspace.activeAgentId.value);
 const wTraceRuns = computed(() => workspace.traceRuns.value);
 const wIsStreaming = computed(() => workspace.isStreaming.value);
 const wStreamingTimeline = computed(() => workspace.streamingTimeline.value);
+const wStreamingPrefixTimeline = computed(() => workspace.streamingPrefixTimeline.value);
 const wLastCompletedRun = computed(() => workspace.lastCompletedRun.value);
 const wIsAwaitingApproval = computed(() => workspace.isAwaitingApproval.value);
 const wPendingApprovalInfo = computed(() => workspace.pendingApprovalInfo.value);
+const wPendingApprovalInfos = computed(() => workspace.pendingApprovalInfos.value);
 const wIsResolvingApproval  = computed(() => workspace.isResolvingApproval.value);
 const wPermissionProfile    = computed(() => workspace.permissionProfile.value);
 const wModelId           = computed(() => workspace.modelId.value);
@@ -212,9 +214,11 @@ onMounted(() => {
               :traceRuns="wTraceRuns"
               :isStreaming="wIsStreaming"
               :streamingTimeline="wStreamingTimeline"
+              :streamingPrefixTimeline="wStreamingPrefixTimeline"
               :lastCompletedRun="wLastCompletedRun"
               :isAwaitingApproval="wIsAwaitingApproval"
               :pendingApprovalInfo="wPendingApprovalInfo"
+              :pendingApprovalInfos="wPendingApprovalInfos"
               :isProcessingApproval="wIsResolvingApproval"
               :permissionProfile="wPermissionProfile"
               :contextTokens="wActiveSession?.context_tokens ?? 0"

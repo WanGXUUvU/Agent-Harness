@@ -11,17 +11,19 @@ const props = defineProps<{
   traceRuns?: TraceRunSummary[];
   isStreaming?: boolean;
   streamingTimeline?: StreamingItem[];
+  streamingPrefixTimeline?: StreamingItem[]; // 审批批准后的前缀 timeline（initialTimeline），与 streamingTimeline 合并渲染
   lastCompletedRun?: TraceRunSummary | null;
   
   // 审批相关
   isAwaitingApproval?: boolean;
   pendingApprovalInfo?: ApprovalInfo | null;
+  pendingApprovalInfos?: ApprovalInfo[];
   isProcessingApproval?: boolean;
 }>();
 
 const emit = defineEmits<{
-  (e: 'approve'): void;
-  (e: 'reject'): void;
+  (e: 'approve', approvalId?: string): void;
+  (e: 'reject', approvalId?: string): void;
   (e: 'approve-all'): void;
 }>();
 
@@ -30,7 +32,7 @@ const listRef = ref<HTMLElement | null>(null);
 const visibleMessages = computed(() =>
   props.messages.filter((message) => 
     message.role === 'user' || 
-    (message.role === 'assistant' && !!message.content)
+    (message.role === 'assistant' && (!!message.content || (message.timeline && message.timeline.length > 0)))
   )
 );
 
@@ -71,6 +73,21 @@ const handleCodeBlockClick = (e: MouseEvent) => {
     .catch(err => {
       console.error('📋 复制代码块失败:', err);
     });
+};
+
+const copiedIndex = ref<number | null>(null);
+
+const handleCopyMessage = (content: string, index: number) => {
+  navigator.clipboard.writeText(content).then(() => {
+    copiedIndex.value = index;
+    setTimeout(() => {
+      if (copiedIndex.value === index) {
+        copiedIndex.value = null;
+      }
+    }, 2000);
+  }).catch(err => {
+    console.error('📋 复制对话内容失败:', err);
+  });
 };
 </script>
 
@@ -122,13 +139,14 @@ const handleCodeBlockClick = (e: MouseEvent) => {
                 :lastCompletedRun="lastCompletedRun"
                 :isAwaitingApproval="isAwaitingApproval"
                 :pendingApprovalInfo="pendingApprovalInfo"
+                :pendingApprovalInfos="pendingApprovalInfos"
                 :isProcessingApproval="isProcessingApproval"
-                @approve="emit('approve')"
-                @reject="emit('reject')"
+                @approve="emit('approve', $event)"
+                @reject="emit('reject', $event)"
                 @approve-all="emit('approve-all')"
               />
             </template>
-
+ 
             <!-- 用户消息渲染 -->
             <template v-else>
               <div v-if="m.skill_name" class="msg-skill-badge">
@@ -137,6 +155,24 @@ const handleCodeBlockClick = (e: MouseEvent) => {
               </div>
               <div class="message-text" v-html="formatContent(m.content)" @click="handleCodeBlockClick"></div>
             </template>
+
+            <!-- Message Footer Action Row -->
+            <div class="message-footer">
+              <button 
+                class="action-btn copy-btn" 
+                :class="{ copied: copiedIndex === idx }"
+                title="复制文本" 
+                @click="handleCopyMessage(m.content || '', idx)"
+              >
+                <svg v-if="copiedIndex !== idx" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="1.8" fill="none">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <svg v-else viewBox="0 0 24 24" width="14" height="14" stroke="var(--accent-emerald, #34c759)" stroke-width="2.2" fill="none">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -170,19 +206,20 @@ const handleCodeBlockClick = (e: MouseEvent) => {
         <div class="message-content">
           <div class="message-meta mono-label">AGENT <span class="blink">STREAMING...</span></div>
 
-          <template v-if="streamingTimeline && streamingTimeline.length > 0">
+          <template v-if="(streamingTimeline && streamingTimeline.length > 0) || (streamingPrefixTimeline && streamingPrefixTimeline.length > 0)">
             <!-- 代理实时消息渲染 -->
             <AssistantMessage
-              :message="{ role: 'assistant', content: '', timeline: streamingTimeline }"
+              :message="{ role: 'assistant', content: '', timeline: [...(streamingPrefixTimeline ?? []), ...(streamingTimeline ?? [])] }"
               :msgIndex="9999"
               :isLast="true"
               :traceRuns="traceRuns"
               :lastCompletedRun="lastCompletedRun"
               :isAwaitingApproval="isAwaitingApproval"
               :pendingApprovalInfo="pendingApprovalInfo"
+              :pendingApprovalInfos="pendingApprovalInfos"
               :isProcessingApproval="isProcessingApproval"
-              @approve="emit('approve')"
-              @reject="emit('reject')"
+              @approve="emit('approve', $event)"
+              @reject="emit('reject', $event)"
               @approve-all="emit('approve-all')"
             />
           </template>
@@ -207,6 +244,55 @@ const handleCodeBlockClick = (e: MouseEvent) => {
 </template>
 
 <style scoped>
+.message-content {
+  position: relative;
+  width: 100%;
+}
+
+.message-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 4px;
+  width: 100%;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.message-row:hover .message-footer {
+  opacity: 1;
+}
+
+.action-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--text-muted) !important;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.action-btn:hover {
+  color: var(--text-primary) !important;
+  background: var(--bg-hover) !important;
+}
+
+.action-btn.copied {
+  color: var(--accent-emerald, #34c759) !important;
+}
+
+@media (max-width: 768px) {
+  /* On mobile touch devices, show actions slightly transparent by default */
+  .message-footer {
+    opacity: 0.75;
+  }
+}
+
 .message-list {
   flex: 1;
   overflow-y: auto;

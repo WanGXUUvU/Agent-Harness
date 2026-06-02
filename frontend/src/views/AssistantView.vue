@@ -36,6 +36,7 @@ const wStreamingTimeline = computed(() => workspace.streamingTimeline.value);
 const wLastCompletedRun = computed(() => workspace.lastCompletedRun.value);
 const wIsAwaitingApproval = computed(() => workspace.isAwaitingApproval.value);
 const wPendingApprovalInfo = computed(() => workspace.pendingApprovalInfo.value);
+const wPendingApprovalInfos = computed(() => workspace.pendingApprovalInfos.value);
 const wIsResolvingApproval  = computed(() => workspace.isResolvingApproval.value);
 const wPermissionProfile    = computed(() => workspace.permissionProfile.value);
 const wModelId           = computed(() => workspace.modelId.value);
@@ -213,6 +214,7 @@ onMounted(() => {
           :lastCompletedRun="wLastCompletedRun"
           :isAwaitingApproval="wIsAwaitingApproval"
           :pendingApprovalInfo="wPendingApprovalInfo"
+          :pendingApprovalInfos="wPendingApprovalInfos"
           :isProcessingApproval="wIsResolvingApproval"
           :permissionProfile="wPermissionProfile"
           :contextTokens="wActiveSession?.context_tokens ?? 0"

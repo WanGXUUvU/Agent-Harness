@@ -4,7 +4,6 @@ import type { AgentMessage, TraceRunSummary, ApprovalInfo, SkillMetadata } from 
 import type { UiAgentOption } from '../types/ui';
 import MessageList from './MessageList.vue';
 import MessageComposer from './MessageComposer.vue';
-import ApprovalCard from './ApprovalCard.vue';
 
 const props = defineProps<{
   messages: AgentMessage[];
@@ -19,9 +18,11 @@ const props = defineProps<{
   traceRuns?: TraceRunSummary[];
   isStreaming?: boolean;
   streamingTimeline?: import('../types').StreamingItem[];
+  streamingPrefixTimeline?: import('../types').StreamingItem[];
   lastCompletedRun?: TraceRunSummary | null;
   isAwaitingApproval?: boolean;
   pendingApprovalInfo?: ApprovalInfo | null;
+  pendingApprovalInfos?: ApprovalInfo[];
   isProcessingApproval?: boolean;
   permissionProfile?: string;
   /** 当前已使用的 token 数（来自 session.context_tokens） */
@@ -47,8 +48,8 @@ const emit = defineEmits<{
   (e: 'compact'): void;
   (e: 'reset'): void;
   (e: 'stop'): void;
-  (e: 'approve'): void;
-  (e: 'reject'): void;
+  (e: 'approve', approvalId?: string): void;
+  (e: 'reject', approvalId?: string): void;
   (e: 'approveAll'): void;
   (e: 'update:permissionProfile', profile: string): void;
   (e: 'update:model', val: { modelId: string | null; providerId: number | null }): void;
@@ -160,17 +161,15 @@ const handleReset = () => {
       :traceRuns="traceRuns"
       :isStreaming="isStreaming"
       :streamingTimeline="streamingTimeline"
+      :streamingPrefixTimeline="streamingPrefixTimeline"
       :lastCompletedRun="lastCompletedRun"
-    />
-
-    <ApprovalCard
-      v-if="isAwaitingApproval && pendingApprovalInfo"
-      :approval="pendingApprovalInfo"
-      :isLoading="isLoading"
-      :isProcessing="isProcessingApproval"
-      @approve="$emit('approve')"
+      :isAwaitingApproval="isAwaitingApproval"
+      :pendingApprovalInfo="pendingApprovalInfo"
+      :pendingApprovalInfos="pendingApprovalInfos"
+      :isProcessingApproval="isProcessingApproval"
+      @approve="$emit('approve', $event)"
+      @reject="$emit('reject', $event)"
       @approve-all="$emit('approveAll')"
-      @reject="$emit('reject')"
     />
 
     <MessageComposer

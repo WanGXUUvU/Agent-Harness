@@ -87,9 +87,17 @@ const expandedGroups = ref<Record<string, boolean>>({});
 
 const getGroupKey = (path: string | null) => path || 'global';
 
+const isGroupExpanded = (path: string | null) => {
+  const key = getGroupKey(path);
+  if (expandedGroups.value[key] !== undefined) {
+    return expandedGroups.value[key];
+  }
+  return localStorage.getItem('settings-sidebar-folders') !== 'false';
+};
+
 const toggleGroup = (path: string | null) => {
   const key = getGroupKey(path);
-  expandedGroups.value[key] = !expandedGroups.value[key];
+  expandedGroups.value[key] = !isGroupExpanded(path);
 };
 
 onMounted(() => {
@@ -300,7 +308,7 @@ const confirmDeleteFolder = (path: string | null, name: string, sessionsList: Se
           v-for="group in groupedSessions" 
           :key="getGroupKey(group.workspacePath)" 
           class="workspace-group"
-          :class="{ collapsed: !expandedGroups[getGroupKey(group.workspacePath)] }"
+          :class="{ collapsed: !isGroupExpanded(group.workspacePath) }"
         >
           <!-- Group Folder Accordion Header (Flat style, no background/border, no inline settings/plus buttons) -->
           <div class="workspace-group-header" @click="toggleGroup(group.workspacePath)">
@@ -347,7 +355,7 @@ const confirmDeleteFolder = (path: string | null, name: string, sessionsList: Se
 
           <!-- Group Body (Slide in and out) -->
           <Transition name="expand">
-            <div v-show="expandedGroups[getGroupKey(group.workspacePath)]" class="workspace-group-body">
+            <div v-show="isGroupExpanded(group.workspacePath)" class="workspace-group-body">
               <template
                 v-for="(session, idx) in group.sessions"
                 :key="session.session_id"

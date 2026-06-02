@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import type { AgentMessage, TraceRunSummary, StreamingItem, ApprovalInfo } from '../../types';
 import type { TimelineChunk, MergedTimelineItem, ThinkingSegment } from './types';
 import { formatContent } from '../../utils/formatContent';
+import { findPendingApprovalForTool } from '../../utils/approvalQueue';
 import ThinkingBlock from './ThinkingBlock.vue';
 import ToolTree from './ToolTree.vue';
 import ToolIcons from '../common/ToolIcons.vue';
@@ -15,12 +16,13 @@ const props = defineProps<{
   lastCompletedRun?: TraceRunSummary | null;
   isAwaitingApproval?: boolean;
   pendingApprovalInfo?: ApprovalInfo | null;
+  pendingApprovalInfos?: ApprovalInfo[];
   isProcessingApproval?: boolean;
 }>();
 
 const emit = defineEmits<{
-  (e: 'approve'): void;
-  (e: 'reject'): void;
+  (e: 'approve', approvalId?: string): void;
+  (e: 'reject', approvalId?: string): void;
   (e: 'approve-all'): void;
 }>();
 
@@ -213,19 +215,27 @@ const hasError = (chunk: TimelineChunk): boolean => {
 };
 
 const hasPendingApprovalInChunk = (chunk: TimelineChunk): boolean => {
-  if (!props.isAwaitingApproval || !props.pendingApprovalInfo) return false;
+  const pendingApprovals = props.pendingApprovalInfos ?? (props.pendingApprovalInfo ? [props.pendingApprovalInfo] : []);
+  if (!props.isAwaitingApproval || pendingApprovals.length === 0) return false;
   
   if (chunk.type === 'thinking' && chunk.segments) {
     return chunk.segments.some((seg: ThinkingSegment) => {
       if (seg.kind !== 'tools') return false;
       return seg.items.some((item: MergedTimelineItem) => {
-        const pInfo = props.pendingApprovalInfo!;
         if (item.kind === 'event') {
-          const cid = item.event.tool_call_id;
-          if (cid && cid === pInfo.tool_call_id) return true;
-          if (!cid && item.event.tool_name === pInfo.tool_name) return true;
+          return !!findPendingApprovalForTool(
+            pendingApprovals,
+            item.event.tool_call_id,
+            item.event.tool_name,
+            item.event.type === 'approval_required' ? item.event.content : null,
+          );
         } else if (item.kind === 'event_group') {
-          return item.tool_name === pInfo.tool_name;
+          return item.raw_events.some(event => !!findPendingApprovalForTool(
+            pendingApprovals,
+            event.tool_call_id,
+            event.tool_name,
+            event.type === 'approval_required' ? event.content : null,
+          ));
         }
         return false;
       });
@@ -234,13 +244,20 @@ const hasPendingApprovalInChunk = (chunk: TimelineChunk): boolean => {
   
   if (chunk.type === 'tools' && chunk.items) {
     return chunk.items.some((item: MergedTimelineItem) => {
-      const pInfo = props.pendingApprovalInfo!;
       if (item.kind === 'event') {
-        const cid = item.event.tool_call_id;
-        if (cid && cid === pInfo.tool_call_id) return true;
-        if (!cid && item.event.tool_name === pInfo.tool_name) return true;
+        return !!findPendingApprovalForTool(
+          pendingApprovals,
+          item.event.tool_call_id,
+          item.event.tool_name,
+          item.event.type === 'approval_required' ? item.event.content : null,
+        );
       } else if (item.kind === 'event_group') {
-        return item.tool_name === pInfo.tool_name;
+        return item.raw_events.some(event => !!findPendingApprovalForTool(
+          pendingApprovals,
+          event.tool_call_id,
+          event.tool_name,
+          event.type === 'approval_required' ? event.content : null,
+        ));
       }
       return false;
     });
@@ -311,10 +328,11 @@ const handleCodeBlockClick = (e: MouseEvent) => {
         :isCollapsed="isChunkCollapsed(chunk)"
         :isAwaitingApproval="isAwaitingApproval"
         :pendingApprovalInfo="pendingApprovalInfo"
+        :pendingApprovalInfos="pendingApprovalInfos"
         :isProcessingApproval="isProcessingApproval"
         @toggle="toggleChunk(chunk.id)"
-        @approve="emit('approve')"
-        @reject="emit('reject')"
+        @approve="emit('approve', $event)"
+        @reject="emit('reject', $event)"
         @approve-all="emit('approve-all')"
       />
       
@@ -341,9 +359,10 @@ const handleCodeBlockClick = (e: MouseEvent) => {
               :items="chunk.items"
               :isAwaitingApproval="isAwaitingApproval"
               :pendingApprovalInfo="pendingApprovalInfo"
+              :pendingApprovalInfos="pendingApprovalInfos"
               :isProcessingApproval="isProcessingApproval"
-              @approve="emit('approve')"
-              @reject="emit('reject')"
+              @approve="emit('approve', $event)"
+              @reject="emit('reject', $event)"
               @approve-all="emit('approve-all')"
             />
           </div>

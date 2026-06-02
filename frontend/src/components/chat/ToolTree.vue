@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import type { ApprovalInfo, AgentEvent } from '../../types';
 import type { MergedTimelineItem } from './types';
+import { findPendingApprovalForTool } from '../../utils/approvalQueue';
 import ToolCard from './ToolCard.vue';
 
 interface GroupedToolExecution {
@@ -13,18 +14,20 @@ interface GroupedToolExecution {
   error?: string;
   duration: string;
   groupCount?: number;
+  approvalInfo?: ApprovalInfo | null;
 }
 
 const props = defineProps<{
   items: MergedTimelineItem[];
   isAwaitingApproval?: boolean;
   pendingApprovalInfo?: ApprovalInfo | null;
+  pendingApprovalInfos?: ApprovalInfo[];
   isProcessingApproval?: boolean;
 }>();
 
 const emit = defineEmits<{
-  (e: 'approve'): void;
-  (e: 'reject'): void;
+  (e: 'approve', approvalId?: string): void;
+  (e: 'reject', approvalId?: string): void;
   (e: 'approve-all'): void;
 }>();
 
@@ -32,9 +35,10 @@ const emit = defineEmits<{
 const getGroupedToolExecutions = (items: MergedTimelineItem[]): GroupedToolExecution[] => {
   const output: GroupedToolExecution[] = [];
   let fallbackIdCounter = 0;
+  const pendingApprovals = props.pendingApprovalInfos ?? (props.pendingApprovalInfo ? [props.pendingApprovalInfo] : []);
 
   // 先把所有单条 event 按 call_id 配对 call+result
-  const singleGroups: Record<string, { call?: any; result?: any }> = {};
+  const singleGroups: Record<string, { call?: any; result?: any; approval?: any }> = {};
   for (const item of items) {
     if (item.kind !== 'event') continue;
     const evt = item.event;
@@ -42,6 +46,7 @@ const getGroupedToolExecutions = (items: MergedTimelineItem[]): GroupedToolExecu
     if (!singleGroups[cid]) singleGroups[cid] = {};
     if (evt.type === 'assistant_tool_call') singleGroups[cid].call = evt;
     else if (evt.type === 'tool_result' || evt.type === 'tool_error') singleGroups[cid].result = evt;
+    else if (evt.type === 'approval_required') singleGroups[cid].approval = evt;
   }
 
   // 按原始 items 顺序输出，遇到 event_group 输出摘要卡，遇到 assistant_tool_call event 输出详情卡
@@ -58,39 +63,38 @@ const getGroupedToolExecutions = (items: MergedTimelineItem[]): GroupedToolExecu
       if (firstResult?.type === 'tool_error') status = 'error';
       else if (firstResult?.type === 'tool_result' && firstResult.tool_result?.ok === false) status = 'error';
       
-      // Root Cause #2 Fix: event_group 审批挂起判断
-      if (status === 'running' && props.isAwaitingApproval && props.pendingApprovalInfo) {
-        const pInfo = props.pendingApprovalInfo;
-        if (pInfo.tool_name === item.tool_name) {
-          status = 'awaiting_approval';
-        }
-      }
+      const groupApproval = item.raw_events
+        .map(event => findPendingApprovalForTool(
+          pendingApprovals,
+          event.tool_call_id,
+          event.tool_name,
+          event.type === 'approval_required' ? event.content : null,
+        ))
+        .find(Boolean) ?? null;
+      if (status === 'running' && groupApproval) status = 'awaiting_approval';
 
       const cid = firstCall?.tool_call_id || `group-${++fallbackIdCounter}`;
-      output.push({ id: cid, tool_name: item.tool_name, status, args, duration: '', groupCount: item.count });
+      output.push({ id: cid, tool_name: item.tool_name, status, args, duration: '', groupCount: item.count, approvalInfo: groupApproval });
     } else if (item.kind === 'event' && item.event.type === 'assistant_tool_call') {
       // 只在遇到 call 事件时输出详情卡（result 事件跳过，已配对到 call 里）
       const evt = item.event;
       const cid = evt.tool_call_id || `fallback-unknown`;
       if (emittedCids.has(cid)) continue;
       emittedCids.add(cid);
-      const { call, result } = singleGroups[cid] || {};
+      const { call, result, approval } = singleGroups[cid] || {};
       const tool_name = call?.tool_name || result?.tool_name || 'unknown_tool';
       let args: any = {};
       if (call?.content) { try { args = JSON.parse(call.content); } catch { args = call.content; } }
       
       let status: 'running' | 'success' | 'error' | 'awaiting_approval' = 'running';
       
-      // Root Cause #2 & #4 Fix: 单次工具审批挂起判断
-      if (props.isAwaitingApproval && props.pendingApprovalInfo) {
-        const pInfo = props.pendingApprovalInfo;
-        const appCid = pInfo.tool_call_id;
-        if (appCid && appCid === cid) {
-          status = 'awaiting_approval';
-        } else if (!appCid && pInfo.tool_name === tool_name) {
-          status = 'awaiting_approval';
-        }
-      }
+      const approvalInfo = findPendingApprovalForTool(
+        pendingApprovals,
+        cid,
+        tool_name,
+        approval?.content ?? null,
+      );
+      if (approvalInfo && !result) status = 'awaiting_approval';
 
       let errorMsg = '';
       let resContent: any = null;
@@ -112,7 +116,7 @@ const getGroupedToolExecutions = (items: MergedTimelineItem[]): GroupedToolExecu
         const ms = result.tool_result.metadata.duration_ms;
         duration = ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
       }
-      output.push({ id: cid, tool_name, status, args, result: resContent, error: errorMsg, duration });
+      output.push({ id: cid, tool_name, status, args, result: resContent, error: errorMsg, duration, approvalInfo });
     }
   }
   return output;
@@ -126,9 +130,10 @@ const getGroupedToolExecutions = (items: MergedTimelineItem[]): GroupedToolExecu
         :exec="exec"
         :isAwaitingApproval="isAwaitingApproval"
         :pendingApprovalInfo="pendingApprovalInfo"
+        :pendingApprovalInfos="pendingApprovalInfos"
         :isProcessingApproval="isProcessingApproval"
-        @approve="emit('approve')"
-        @reject="emit('reject')"
+        @approve="emit('approve', $event)"
+        @reject="emit('reject', $event)"
         @approve-all="emit('approve-all')"
       />
     </template>

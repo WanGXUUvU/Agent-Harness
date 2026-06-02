@@ -21,22 +21,8 @@ const activeTab = ref('general');
 
 const TABS = [
   { id: 'general', name: '常规' },
-  { id: 'profile', name: '个人资料' },
   { id: 'appearance', name: '外观' },
-  { id: 'snapshots', name: '应用快照' },
   { id: 'providers', name: '配置' },
-  { id: 'customization', name: '个性化' },
-  { id: 'shortcuts', name: '键盘快捷键' },
-  { id: 'mcp', name: 'MCP 服务器' },
-  { id: 'hooks', name: '钩子' },
-  { id: 'connections', name: '连接' },
-  { id: 'git', name: 'Git' },
-  { id: 'environment', name: '环境' },
-  { id: 'worktree', name: '工作树' },
-  { id: 'browser', name: '浏览器' },
-  { id: 'computer', name: '电脑操控' },
-  { id: 'archive', name: '已归档对话' },
-  { id: 'billing', name: '使用情况和计费' },
 ] as const;
 
 const currentTabName = computed(() => {
@@ -50,7 +36,6 @@ const settingsGeneral = ref({
   sendShortcut: localStorage.getItem('settings-send-shortcut') || 'Enter',
   sidebarFoldersOpen: localStorage.getItem('settings-sidebar-folders') !== 'false',
   streamDelay: parseInt(localStorage.getItem('settings-stream-delay') || '10'),
-  autoCompact: localStorage.getItem('settings-auto-compact') === 'true',
 });
 
 const saveGeneralSettings = () => {
@@ -58,7 +43,6 @@ const saveGeneralSettings = () => {
   localStorage.setItem('settings-send-shortcut', settingsGeneral.value.sendShortcut);
   localStorage.setItem('settings-sidebar-folders', String(settingsGeneral.value.sidebarFoldersOpen));
   localStorage.setItem('settings-stream-delay', String(settingsGeneral.value.streamDelay));
-  localStorage.setItem('settings-auto-compact', String(settingsGeneral.value.autoCompact));
 };
 
 watch(settingsGeneral, () => {
@@ -259,8 +243,7 @@ const selectTheme = (themeId: string) => {
   localStorage.setItem('agent-build-theme', themeId);
 };
 
-// ── MCP 服务器交互状态 ──
-const mcpTerminalVisible = ref(false);
+
 </script>
 
 <template>
@@ -269,13 +252,6 @@ const mcpTerminalVisible = ref(false);
       
       <!-- 🟢 左侧：顶奢毛玻璃导航侧边栏 -->
       <aside class="settings-sidebar">
-        <!-- macOS 窗口控制红黄绿三色点 -->
-        <div class="window-controls">
-          <span class="control-dot close" @click="$emit('close')" title="关闭设置"></span>
-          <span class="control-dot minimize"></span>
-          <span class="control-dot maximize"></span>
-        </div>
-
         <!-- 返回应用触发器 -->
         <div class="back-to-app-btn" @click="$emit('close')">
           <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" class="back-arrow-icon">
@@ -300,19 +276,10 @@ const mcpTerminalVisible = ref(false);
                 <circle cx="12" cy="12" r="3"></circle>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
               </template>
-              <template v-else-if="tab.id === 'profile'">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </template>
               <template v-else-if="tab.id === 'appearance'">
                 <circle cx="12" cy="12" r="10"></circle>
                 <path d="M12 2v20"></path>
                 <path d="M12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6"></path>
-              </template>
-              <template v-else-if="tab.id === 'snapshots'">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <circle cx="9" cy="9" r="2"></circle>
-                <path d="M21 15l-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
               </template>
               <template v-else-if="tab.id === 'providers'">
                 <line x1="4" y1="21" x2="4" y2="14"></line>
@@ -325,73 +292,6 @@ const mcpTerminalVisible = ref(false);
                 <line x1="9" y1="8" x2="15" y2="8"></line>
                 <line x1="17" y1="16" x2="23" y2="16"></line>
               </template>
-              <template v-else-if="tab.id === 'customization'">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
-              </template>
-              <template v-else-if="tab.id === 'shortcuts'">
-                <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
-                <line x1="6" y1="8" x2="6" y2="8"></line>
-                <line x1="10" y1="8" x2="10" y2="8"></line>
-                <line x1="14" y1="8" x2="14" y2="8"></line>
-                <line x1="18" y1="8" x2="18" y2="8"></line>
-                <line x1="6" y1="12" x2="6" y2="12"></line>
-                <line x1="10" y1="12" x2="10" y2="12"></line>
-                <line x1="14" y1="12" x2="14" y2="12"></line>
-                <line x1="18" y1="12" x2="18" y2="12"></line>
-                <line x1="7" y1="16" x2="17" y2="16"></line>
-              </template>
-              <template v-else-if="tab.id === 'mcp'">
-                <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
-                <path d="M2 8h16v8H2z"></path>
-                <line x1="6" y1="1" x2="6" y2="4"></line>
-                <line x1="10" y1="1" x2="10" y2="4"></line>
-                <line x1="14" y1="1" x2="14" y2="4"></line>
-              </template>
-              <template v-else-if="tab.id === 'hooks'">
-                <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3z"></path>
-                <path d="M6 21a3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3v12a3 3 0 0 0 3 3z"></path>
-              </template>
-              <template v-else-if="tab.id === 'connections'">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="2" y1="12" x2="22" y2="12"></line>
-                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-              </template>
-              <template v-else-if="tab.id === 'git'">
-                <circle cx="18" cy="18" r="3"></circle>
-                <circle cx="6" cy="6" r="3"></circle>
-                <circle cx="6" cy="18" r="3"></circle>
-                <line x1="6" y1="9" x2="6" y2="15"></line>
-                <path d="M9 18h3a6 6 0 0 0 6-6V9"></path>
-              </template>
-              <template v-else-if="tab.id === 'environment'">
-                <polyline points="4 17 10 11 4 5"></polyline>
-                <line x1="12" y1="19" x2="20" y2="19"></line>
-              </template>
-              <template v-else-if="tab.id === 'worktree'">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                <line x1="12" y1="11" x2="12" y2="17"></line>
-                <line x1="9" y1="14" x2="15" y2="14"></line>
-              </template>
-              <template v-else-if="tab.id === 'browser'">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                <line x1="2" y1="10" x2="22" y2="10"></line>
-                <line x1="12" y1="17" x2="12" y2="21"></line>
-                <line x1="7" y1="21" x2="17" y2="21"></line>
-              </template>
-              <template v-else-if="tab.id === 'computer'">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                <line x1="8" y1="21" x2="16" y2="21"></line>
-                <line x1="12" y1="17" x2="12" y2="21"></line>
-              </template>
-              <template v-else-if="tab.id === 'archive'">
-                <polyline points="21 8 21 21 3 21 3 8"></polyline>
-                <rect x="1" y="3" width="22" height="5"></rect>
-                <line x1="10" y1="12" x2="14" y2="12"></line>
-              </template>
-              <template v-else-if="tab.id === 'billing'">
-                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-                <line x1="1" y1="10" x2="23" y2="10"></line>
-              </template>
             </svg>
             <span class="nav-label">{{ tab.name }}</span>
           </button>
@@ -400,15 +300,9 @@ const mcpTerminalVisible = ref(false);
 
       <!-- 🔵 右侧：主设置面板内容区 -->
       <main class="settings-content">
-        <!-- 头部标题与直接关闭按钮 -->
+        <!-- 头部标题 -->
         <header class="content-header">
           <h2>{{ currentTabName }}</h2>
-          <button class="close-btn-right" @click="$emit('close')">
-            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
         </header>
 
         <!-- 主体区域 -->
@@ -462,15 +356,6 @@ const mcpTerminalVisible = ref(false);
                 <input v-model.number="settingsGeneral.streamDelay" type="range" min="0" max="100" step="5" class="premium-slider" />
               </div>
 
-              <div class="settings-row">
-                <div class="row-info">
-                  <div class="row-title">智能令牌压缩 (Token Auto-compaction)</div>
-                  <div class="row-desc">当会话超过模型的 80% 上下文时，自动触发后端精简压缩。</div>
-                </div>
-                <button class="switch-toggle" :class="{ active: settingsGeneral.autoCompact }" @click="settingsGeneral.autoCompact = !settingsGeneral.autoCompact">
-                  <span class="switch-dot"></span>
-                </button>
-              </div>
             </div>
           </div>
 
@@ -667,219 +552,6 @@ const mcpTerminalVisible = ref(false);
                     </table>
                   </div>
                 </Transition>
-              </div>
-            </div>
-          </div>
-
-          <!-- 4. MCP 服务器配置面板 (MCP Servers Dashboard) -->
-          <div v-if="activeTab === 'mcp'" class="settings-panel-view">
-            <div class="view-description">查看及装配本地 Model Context Protocol (MCP) 服务器以自动扩展 Agent 的工具箱。</div>
-            
-            <div class="mcp-servers-list">
-              <div class="mcp-server-card">
-                <div class="card-header-main">
-                  <div class="server-meta">
-                    <span class="server-dot active"></span>
-                    <span class="server-name">filesystem-server</span>
-                    <span class="server-type">标准本地服务</span>
-                  </div>
-                  <span class="server-status active">已连接</span>
-                </div>
-                <div class="server-body">
-                  <div class="server-detail-row">
-                    <span class="detail-label">启动指令:</span>
-                    <span class="detail-val mono-text">npx -y @modelcontextprotocol/server-filesystem /Users/wangxu/Documents/AGENT Build</span>
-                  </div>
-                  <div class="server-detail-row">
-                    <span class="detail-label">提供的工具:</span>
-                    <div class="tool-badges">
-                      <span class="tool-badge">read_file</span>
-                      <span class="tool-badge">write_file</span>
-                      <span class="tool-badge">list_dir</span>
-                      <span class="tool-badge">grep_search</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="mcp-server-card">
-                <div class="card-header-main">
-                  <div class="server-meta">
-                    <span class="server-dot active"></span>
-                    <span class="server-name">tavily-search-server</span>
-                    <span class="server-type">Web 外部集成</span>
-                  </div>
-                  <span class="server-status active">已连接</span>
-                </div>
-                <div class="server-body">
-                  <div class="server-detail-row">
-                    <span class="detail-label">运行模块:</span>
-                    <span class="detail-val mono-text">python -m mcp_tavily</span>
-                  </div>
-                  <div class="server-detail-row">
-                    <span class="detail-label">提供的工具:</span>
-                    <div class="tool-badges">
-                      <span class="tool-badge">web_search</span>
-                      <span class="tool-badge">fetch_page</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="mcp-server-card">
-                <div class="card-header-main">
-                  <div class="server-meta">
-                    <span class="server-dot active"></span>
-                    <span class="server-name">sandbox-interpreter</span>
-                    <span class="server-type">代码执行沙箱</span>
-                  </div>
-                  <span class="server-status active">已连接</span>
-                </div>
-                <div class="server-body">
-                  <div class="server-detail-row">
-                    <span class="detail-label">API 端口:</span>
-                    <span class="detail-val mono-text">http://localhost:8888</span>
-                  </div>
-                  <div class="server-detail-row">
-                    <span class="detail-label">提供的工具:</span>
-                    <div class="tool-badges">
-                      <span class="tool-badge">execute_python</span>
-                      <span class="tool-badge">install_package</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Interactive Terminal Console Mock -->
-            <div class="mcp-terminal-section">
-              <div class="terminal-header" @click="mcpTerminalVisible = !mcpTerminalVisible">
-                <div class="term-left">
-                  <span class="terminal-icon">$_</span>
-                  <span>服务器控制台实时输出 (Terminal Logs)</span>
-                </div>
-                <span class="chevron" :class="{ open: mcpTerminalVisible }">▼</span>
-              </div>
-              <div v-if="mcpTerminalVisible" class="terminal-body mono-text">
-                <div class="log-line">`[23:28:10] [mcp/filesystem] starting process...`</div>
-                <div class="log-line">`[23:28:12] [mcp/filesystem] filesystem is now listening on stdio. path="/Users/wangxu/Documents/AGENT Build"`</div>
-                <div class="log-line">`[23:28:14] [mcp/websearch] tavily initialized. query limit = 1000/day`</div>
-                <div class="log-line success">`[23:28:15] [mcp/manager] 3 servers connected successfully. 8 tools loaded.`</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 5. 键盘快捷键面板 (Keyboard Shortcuts Reference Sheet) -->
-          <div v-if="activeTab === 'shortcuts'" class="settings-panel-view">
-            <div class="view-description">键盘快捷操作手册，极大提升您的操控效率。</div>
-            <div class="shortcuts-table">
-              <div class="shortcut-item">
-                <span class="shortcut-name">新建助理对话会话</span>
-                <span class="shortcut-keys"><kbd>⌘</kbd> + <kbd>J</kbd></span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-name">新建编码对话会话</span>
-                <span class="shortcut-keys"><kbd>⌘</kbd> + <kbd>K</kbd></span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-name">折叠/展开主侧边栏</span>
-                <span class="shortcut-keys"><kbd>⌘</kbd> + <kbd>\</kbd> 或 <kbd>⌘</kbd> + <kbd>B</kbd></span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-name">打开模型与全局设置</span>
-                <span class="shortcut-keys"><kbd>⌘</kbd> + <kbd>,</kbd></span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-name">向 Agent 提交当前指令</span>
-                <span class="shortcut-keys"><kbd>Enter</kbd> 或 <kbd>⌘</kbd> + <kbd>Enter</kbd></span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-name">关闭弹出窗口 / 返回应用</span>
-                <span class="shortcut-keys"><kbd>Esc</kbd></span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 6. 使用情况和计费面板 (Usage & Billing Dashboard) -->
-          <div v-if="activeTab === 'billing'" class="settings-panel-view">
-            <div class="view-description">监控模型调用总频次、本地和云端资源的总 Token 消费数额。</div>
-            
-            <div class="billing-dash">
-              <div class="billing-card-mini">
-                <div class="mini-title">账户层级</div>
-                <div class="mini-value highlight-cyan">Free Developer</div>
-                <div class="mini-subtitle">本地免费模式 / 无限免费</div>
-              </div>
-              <div class="billing-card-mini">
-                <div class="mini-title">本周 API 请求数</div>
-                <div class="mini-value text-accent">1,280 次</div>
-                <div class="mini-subtitle">调用高峰：昨日 (540次)</div>
-              </div>
-            </div>
-
-            <!-- Token progress bar -->
-            <div class="progress-section">
-              <div class="progress-labels">
-                <span>月度 Token 使用量限制</span>
-                <span class="mono-text">76.5% (1.53M / 2.0M tokens)</span>
-              </div>
-              <div class="progress-track">
-                <div class="progress-bar-fill" style="width: 76.5%"></div>
-              </div>
-            </div>
-
-            <!-- CSS Bar Chart -->
-            <div class="chart-section">
-              <div class="chart-header">每日 API 消耗趋势</div>
-              <div class="bar-chart-container">
-                <div class="bar-col">
-                  <div class="bar-fill" style="height: 50%" title="周一: 350次"></div>
-                  <span class="bar-label">Mon</span>
-                </div>
-                <div class="bar-col">
-                  <div class="bar-fill" style="height: 70%" title="周二: 480次"></div>
-                  <span class="bar-label">Tue</span>
-                </div>
-                <div class="bar-col">
-                  <div class="bar-fill" style="height: 90%" title="周三: 620次"></div>
-                  <span class="bar-label">Wed</span>
-                </div>
-                <div class="bar-col">
-                  <div class="bar-fill" style="height: 30%" title="周四: 210次"></div>
-                  <span class="bar-label">Thu</span>
-                </div>
-                <div class="bar-col active">
-                  <div class="bar-fill active" style="height: 78%" title="周五 (今日): 540次"></div>
-                  <span class="bar-label">Fri</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 7. 开发预留 / Placeholder 面板 -->
-          <div 
-            v-if="['profile', 'snapshots', 'customization', 'hooks', 'connections', 'git', 'environment', 'worktree', 'browser', 'computer', 'archive'].includes(activeTab)"
-            class="settings-panel-view"
-          >
-            <div class="draft-feature-card">
-              <div class="draft-header">
-                <div class="draft-badge">开发预留 / Draft Mode</div>
-                <h3>该面板功能正在闭门设计中</h3>
-              </div>
-              <p class="draft-desc">
-                我们正在针对本地工作区与 Agent 执行引擎进行极致打磨。本栏目作为 Codex 顶奢规范预留接口，在未来的版本中，它将用于装配并定制高级属性（例如内置浏览器隔离级别、Git 自动合并策略、或电脑的执行安全性级别）。
-              </p>
-              
-              <!-- Aesthetic Disabled Controls Mockup to make it look alive but not fully functional -->
-              <div class="mock-fields">
-                <div class="mock-row disabled">
-                  <span>启用自动分支回滚 (Auto Git-Rollback)</span>
-                  <button class="switch-toggle" disabled><span class="switch-dot"></span></button>
-                </div>
-                <div class="mock-row disabled">
-                  <span>内置浏览器无痕模式 (Sandbox Incognito)</span>
-                  <button class="switch-toggle active" disabled><span class="switch-dot"></span></button>
-                </div>
               </div>
             </div>
           </div>

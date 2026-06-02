@@ -83,6 +83,22 @@ const isFocused = ref(false);
 const showProfileMenu = ref(false);
 const showComposerCtx = ref(false);
 
+// ── 发送快捷键配置监听 ──
+const sendShortcut = ref(localStorage.getItem('settings-send-shortcut') || 'Enter');
+
+watch(isFocused, (newVal) => {
+  if (newVal) {
+    sendShortcut.value = localStorage.getItem('settings-send-shortcut') || 'Enter';
+  }
+});
+
+const sendShortcutHint = computed(() => {
+  if (sendShortcut.value === 'CmdEnter') {
+    return '<kbd>⌘↩</kbd> send &nbsp;<kbd>↩</kbd> newline';
+  }
+  return '<kbd>↩</kbd> send &nbsp;<kbd>⇧↩</kbd> newline';
+});
+
 // ── 斜杠命令菜单 ──
 const showSlashMenu = ref(false);
 const slashQuery = ref('');
@@ -184,10 +200,24 @@ const handleKeyDown = (e: KeyboardEvent) => {
       return;
     }
   }
-  if (e.key === 'Enter' && !e.shiftKey) {
+  
+  if (e.key === 'Enter') {
     if (e.isComposing || e.keyCode === 229) return;
-    e.preventDefault();
-    handleSend();
+    
+    // 如果配置为 Cmd+Enter 发送
+    if (sendShortcut.value === 'CmdEnter') {
+      if (e.metaKey || e.ctrlKey) {
+        e.preventDefault();
+        handleSend();
+      }
+      // Enter 单独按默认换行
+    } else {
+      // Enter 直接发送，Shift+Enter 换行
+      if (!e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
+    }
   }
   // Backspace 清除已选 skill
   if (e.key === 'Backspace' && selectedSkillName.value && !text.value) {
@@ -252,7 +282,7 @@ const handleCompact = () => {
         <span v-if="messageCount !== undefined && messageCount > 0" class="turn-counter" :class="{ 'turn-warn': messageCount >= 10 }">
           {{ messageCount }} msg
         </span>
-        <span class="key-hint"><kbd>↩</kbd> send &nbsp;<kbd>⇧↩</kbd> newline</span>
+        <span class="key-hint" v-html="sendShortcutHint"></span>
       </div>
     </div>
 

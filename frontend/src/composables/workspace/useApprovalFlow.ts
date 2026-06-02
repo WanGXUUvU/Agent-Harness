@@ -1,7 +1,8 @@
-import { type Ref } from 'vue';
+import { ref, type Ref } from 'vue';
 
 import { api } from '../../api/client';
 import type { AgentMessage, ApprovalInfo, StreamingItem, TraceRunSummary } from '../../types';
+import { removePendingApproval, upsertPendingApproval } from '../../utils/approvalQueue';
 import { reconstructUiMessages, writeTimelineToStore } from './helpers';
 
 interface ApprovalFlowOptions {
@@ -12,10 +13,12 @@ interface ApprovalFlowOptions {
   isStreaming: Ref<boolean>;
   isChatLoading: Ref<boolean>;
   streamingTimeline: Ref<StreamingItem[]>;
+  streamingPrefixTimeline: Ref<StreamingItem[]>;
   lastCompletedRun: Ref<TraceRunSummary | null>;
   errorMsg: Ref<string | null>;
   isAwaitingApproval: Ref<boolean>;
   pendingApprovalInfo: Ref<ApprovalInfo | null>;
+  pendingApprovalInfos: Ref<ApprovalInfo[]>;
   isResolvingApproval: Ref<boolean>;
   onLiveAgentEvent: (sessionId: string, ev: any) => void;
   extractChildAgents: (sessionId: string, msgs: AgentMessage[], traceRuns: TraceRunSummary[]) => void;
@@ -31,19 +34,28 @@ export function useApprovalFlow(options: ApprovalFlowOptions) {
     isStreaming,
     isChatLoading,
     streamingTimeline,
+    streamingPrefixTimeline,
     lastCompletedRun,
     errorMsg,
     isAwaitingApproval,
     pendingApprovalInfo,
+    pendingApprovalInfos,
     isResolvingApproval,
     onLiveAgentEvent,
     extractChildAgents,
     updatePermissionProfile,
   } = options;
 
-  async function handleApprovalStream(streamFn: () => AsyncGenerator<any>) {
-    if (!pendingApprovalInfo.value) return;
+  const syncApprovalHead = () => {
+    pendingApprovalInfo.value = pendingApprovalInfos.value[0] ?? null;
+    isAwaitingApproval.value = pendingApprovalInfos.value.length > 0;
+  };
 
+  async function handleApprovalStream(streamFn: () => AsyncGenerator<any>, approvalId?: string) {
+    const targetApprovalId = approvalId ?? pendingApprovalInfo.value?.approval_id;
+    if (!targetApprovalId) return;
+
+    // ── Step 1：收集上一条 assistant 消息的 timeline（作为流式前缀，保持上下文连续性）──
     const initialTimeline: StreamingItem[] = [];
     for (let i = currentMessages.value.length - 1; i >= 0; i--) {
       const message = currentMessages.value[i];
@@ -53,9 +65,31 @@ export function useApprovalFlow(options: ApprovalFlowOptions) {
       }
     }
 
+    // ── Step 2：只移除当前审批卡，保留同批剩余待审批卡 ──
+    pendingApprovalInfos.value = removePendingApproval(pendingApprovalInfos.value, targetApprovalId);
+    syncApprovalHead();
+
+    // ── Step 3：移除 content:null 的占位消息（由 paused 插入的空壳），避免与新流式块重叠 ──
+    //   有真实 content 的消息保留（它们是有价值的历史上下文）
+    currentMessages.value = currentMessages.value.filter(
+      m => !(m.role === 'assistant' && m.content === null)
+    );
+
+    // ── Step 3b：清除保留消息的 timeline（tool cards 已并入 streamingTimeline 前缀，避免重复渲染）──
+    //   流结束后 reconstructUiMessages 会从服务器重建最终完整状态
+    currentMessages.value = currentMessages.value.map(m => {
+      if (m.role === 'assistant' && m.timeline && m.timeline.length > 0) {
+        return { ...m, timeline: [] };
+      }
+      return m;
+    });
+
     isStreaming.value = true;
     isChatLoading.value = true;
     isResolvingApproval.value = true;
+    // ── Step 4：设置流式块前缀（initialTimeline），让 call+result 能正确配对显示 ──
+    // streaming block 会渲染 streamingPrefixTimeline + streamingTimeline
+    streamingPrefixTimeline.value = [...initialTimeline];
     streamingTimeline.value = [];
     errorMsg.value = null;
     let capturedRunId: string | null = null;
@@ -100,39 +134,42 @@ export function useApprovalFlow(options: ApprovalFlowOptions) {
             writeTimelineToStore(capturedRunId, partialTimeline);
           }
 
-          const partialText = partialTimeline
-            .filter(i => i.kind === 'text')
-            .map(i => i.content)
-            .join('');
-          if (partialText) {
+          if (partialTimeline.length > 0) {
             const newMsgs = [...currentMessages.value];
+            let found = false;
             for (let i = newMsgs.length - 1; i >= 0; i--) {
               if (newMsgs[i].role === 'assistant') {
                 newMsgs[i] = { ...newMsgs[i], timeline: partialTimeline };
+                found = true;
                 break;
               }
+            }
+            if (!found) {
+              newMsgs.push({ role: 'assistant', content: null, timeline: partialTimeline });
             }
             currentMessages.value = newMsgs;
           }
 
           const nextApprovalId = frame.data.approval_id;
           if (nextApprovalId) {
-            pendingApprovalInfo.value = {
+            const pendingApproval = {
               approval_id: nextApprovalId,
               tool_name: '',
               arguments: '',
               run_id: capturedRunId ?? '',
             };
+            pendingApprovalInfos.value = upsertPendingApproval(pendingApprovalInfos.value, pendingApproval);
+            syncApprovalHead();
 
             api.getApproval(nextApprovalId).then(info => {
-              if (pendingApprovalInfo.value?.approval_id === nextApprovalId) {
-                pendingApprovalInfo.value = {
-                  approval_id: nextApprovalId,
-                  tool_name: info.tool_name,
-                  arguments: info.arguments,
-                  run_id: capturedRunId ?? '',
-                };
-              }
+              pendingApprovalInfos.value = upsertPendingApproval(pendingApprovalInfos.value, {
+                approval_id: nextApprovalId,
+                tool_name: info.tool_name,
+                arguments: info.arguments,
+                run_id: capturedRunId ?? '',
+                tool_call_id: (info as any).tool_call_id ?? undefined,
+              });
+              syncApprovalHead();
             }).catch(() => {});
           }
         } else if (frame.type === 'end') {
@@ -166,33 +203,32 @@ export function useApprovalFlow(options: ApprovalFlowOptions) {
       }
     } finally {
       isResolvingApproval.value = false;
-      isAwaitingApproval.value = stillAwaitingApproval;
-      if (!stillAwaitingApproval) {
-        pendingApprovalInfo.value = null;
-      }
+      isAwaitingApproval.value = stillAwaitingApproval || pendingApprovalInfos.value.length > 0;
+      pendingApprovalInfo.value = pendingApprovalInfos.value[0] ?? null;
       isStreaming.value = false;
       isChatLoading.value = false;
       streamingTimeline.value = [];
+      streamingPrefixTimeline.value = []; // 清空前缀，流式块消失后不留残影
     }
   }
 
-  const approveAction = async () => {
-    if (!pendingApprovalInfo.value) return;
-    const id = pendingApprovalInfo.value.approval_id;
-    await handleApprovalStream(() => api.streamApprove(id));
+  const approveAction = async (approvalId?: string) => {
+    const id = approvalId ?? pendingApprovalInfo.value?.approval_id;
+    if (!id) return;
+    await handleApprovalStream(() => api.streamApprove(id), id);
   };
 
-  const rejectAction = async () => {
-    if (!pendingApprovalInfo.value) return;
-    const id = pendingApprovalInfo.value.approval_id;
-    await handleApprovalStream(() => api.streamReject(id));
+  const rejectAction = async (approvalId?: string) => {
+    const id = approvalId ?? pendingApprovalInfo.value?.approval_id;
+    if (!id) return;
+    await handleApprovalStream(() => api.streamReject(id), id);
   };
 
   const approveAllAction = async () => {
     if (!pendingApprovalInfo.value) return;
     const id = pendingApprovalInfo.value.approval_id;
     await updatePermissionProfile('full-auto');
-    await handleApprovalStream(() => api.streamApproveAll(id));
+    await handleApprovalStream(() => api.streamApproveAll(id), id);
   };
 
   return {
@@ -200,4 +236,6 @@ export function useApprovalFlow(options: ApprovalFlowOptions) {
     rejectAction,
     approveAllAction,
   };
+
+  // ── 注：streamingPrefixTimeline 通过 options.streamingPrefixTimeline 共享给外部 ──
 }
