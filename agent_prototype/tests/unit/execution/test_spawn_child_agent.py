@@ -113,6 +113,7 @@ class TestSpawnChildAgentPersistence(unittest.TestCase):
             patch("agent_prototype.execution.child_agent_dispatcher._executor", self.executor),
             patch("agent_prototype.execution.child_agent_dispatcher._global_futures", self.futures),
             patch("agent_prototype.execution.child_agent_dispatcher.AgentRunner") as MockAgent,
+            patch("agent_prototype.execution.child_agent_dispatcher.RunVfsRegistry") as MockVfsRegistry,
             patch(
                 "agent_prototype.execution.child_agent_dispatcher.SessionLocal", self.session_local
             ),
@@ -121,6 +122,8 @@ class TestSpawnChildAgentPersistence(unittest.TestCase):
             mock_instance = MagicMock()
             mock_instance.run.return_value = fake_output
             MockAgent.return_value = mock_instance
+            staged_vfs = MagicMock()
+            MockVfsRegistry.get.return_value = staged_vfs
 
             registry = build_run_registry(
                 child_dispatcher=run_service.child_dispatcher.make_child_dispatcher(
@@ -149,6 +152,60 @@ class TestSpawnChildAgentPersistence(unittest.TestCase):
             self.assertEqual(children[0].user_input, "帮我查一下天气")
             self.assertEqual(children[0].reply, "子任务完成")
             self.assertEqual(MockAgent.call_args.kwargs["model_adapter"].model, "test-model")
+            self.assertEqual(mock_instance.run.call_args.kwargs["run_id"], child_run_id)
+            MockVfsRegistry.create.assert_called_once_with(child_run_id)
+            staged_vfs.commit_all.assert_called_once()
+            MockVfsRegistry.take.assert_called_once_with(child_run_id)
+        finally:
+            db.close()
+
+    def test_child_run_failure_discards_vfs_and_does_not_persist_child_record(self):
+        parent_run_id = "parent-run-fail"
+        session_id = "session-with-model-fail"
+        _seed_session_model(self.session_local, session_id)
+
+        db = self.session_local()
+        run_service = RunService(db)
+
+        with (
+            patch("agent_prototype.execution.child_agent_dispatcher._executor", self.executor),
+            patch("agent_prototype.execution.child_agent_dispatcher._global_futures", self.futures),
+            patch("agent_prototype.execution.child_agent_dispatcher.AgentRunner") as MockAgent,
+            patch("agent_prototype.execution.child_agent_dispatcher.RunVfsRegistry") as MockVfsRegistry,
+            patch(
+                "agent_prototype.execution.child_agent_dispatcher.SessionLocal", self.session_local
+            ),
+        ):
+            mock_instance = MagicMock()
+            mock_instance.run.side_effect = RuntimeError("child failed")
+            MockAgent.return_value = mock_instance
+
+            registry = build_run_registry(
+                child_dispatcher=run_service.child_dispatcher.make_child_dispatcher(
+                    parent_run_id, session_id
+                ),
+                status_checker=run_service.child_dispatcher.make_status_checker(),
+                child_waiter=run_service.child_dispatcher.make_child_waiter(),
+            )
+            result = registry.execute_tool_call(
+                "spawn_child_agent",
+                '{"task": "失败任务"}',
+            )
+
+            self.assertTrue(result.ok)
+            child_run_id = result.content
+
+            with self.assertRaises(RuntimeError):
+                self.futures[child_run_id].result(timeout=10)
+
+            MockVfsRegistry.create.assert_called_once_with(child_run_id)
+            MockVfsRegistry.discard.assert_called_once_with(child_run_id)
+            MockVfsRegistry.take.assert_not_called()
+
+        try:
+            run_store = SqliteRunStore(db)
+            children = run_store.get_children_runs(parent_run_id)
+            self.assertEqual(children, [])
         finally:
             db.close()
 

@@ -35,6 +35,7 @@ from agent_prototype.execution.streaming.sse import _sse_frame
 from agent_prototype.agent.definition import AgentDefinitionService
 from agent_prototype.execution.persistence.service import RunPersistenceService
 from agent_prototype.execution.runtime_context_factory import RuntimeContextFactory
+from agent_prototype.execution.runtime.vfs import RunVfsRegistry
 
 
 class ResumeRunService:
@@ -102,6 +103,13 @@ class ResumeRunService:
                 approval.session_id
             ).workspace_path
             pipeline = MiddlewarePipeline([SandboxMiddleware()])
+            extra = {
+                "workspace_path": workspace_path,
+                "allow_tool_names": definition.tool_names,
+            }
+            vfs = RunVfsRegistry.get(approval.run_id)
+            if vfs is not None:
+                extra["vfs"] = vfs
 
             progress_queue: asyncio.Queue[AgentEvent] = asyncio.Queue()
 
@@ -122,10 +130,7 @@ class ResumeRunService:
                 tool_call_id=approval.tool_call_id,
                 session_id=approval.session_id,
                 run_id=approval.run_id,
-                extra={
-                    "workspace_path": workspace_path,
-                    "allow_tool_names": definition.tool_names,
-                },
+                extra=extra,
                 on_progress=on_progress,
                 loop=loop,
             )

@@ -21,6 +21,7 @@ from agent_prototype.execution.persistence.types import AgentInput
 from agent_prototype.execution.runtime.agent_executor import _executor, _global_futures
 from agent_prototype.execution.runtime.agent_runtime import AgentRunner
 from agent_prototype.execution.runtime.types import AgentState
+from agent_prototype.execution.runtime.vfs import RunVfsRegistry
 from agent_prototype.execution.runtime_context_factory import RuntimeContextFactory
 from agent_prototype.infra.db.engine import SessionLocal
 from agent_prototype.memory.run.store import SqliteRunStore
@@ -115,6 +116,7 @@ class ChildAgentDispatcher:
     ):
         """在线程池中执行单个子 Agent 并落库结果。"""
         db = SessionLocal()
+        RunVfsRegistry.create(child_run_id)
         try:
             from agent_prototype.infra.db.orm_models import SessionRecord
             session_rec = db.query(SessionRecord).filter(SessionRecord.session_id == session_id).first()
@@ -142,7 +144,8 @@ class ChildAgentDispatcher:
                     session_id=session_id,
                     user_input=task,
                     workspace_path=workspace_path,
-                )
+                ),
+                run_id=child_run_id,
             )
 
             run_store = SqliteRunStore(db)
@@ -156,9 +159,14 @@ class ChildAgentDispatcher:
                 events=output.events,
             )
             db.commit()
+            staged_vfs = RunVfsRegistry.get(child_run_id)
+            if staged_vfs is not None:
+                staged_vfs.commit_all()
+                RunVfsRegistry.take(child_run_id)
             return output
         except Exception:
             db.rollback()
+            RunVfsRegistry.discard(child_run_id)
             raise
         finally:
             db.close()

@@ -20,7 +20,7 @@ from agent_prototype.tools.types import ToolDefinition  # 导入工具定义
 from agent_prototype.tools.types import RiskLevel
 
 
-def write_file(path: str, content: str) -> str:  # 把内容写入文件
+def write_file(path: str, content: str, __context__=None) -> str:  # 把内容写入文件
     """这是“把文字写入文件”的具体执行函数。
     就像你在电脑上新建或者打开一个文本文件，把一堆字粘贴进去然后点击“保存”。如果存放这个文件的文件夹根本不存在，它还会很贴心地自动把缺失的文件夹全都建好。
 
@@ -31,6 +31,14 @@ def write_file(path: str, content: str) -> str:  # 把内容写入文件
     会给出来的结果：
     - str: 一个写入结果的通知，比如告诉你成功往哪个文件写入了多少个字符。如果指定的路径其实是一个文件夹，它会明智地拒绝并报错。
     """
+    vfs = None
+    if __context__ is not None:
+        vfs = __context__.extra.get("vfs")
+
+    if vfs is not None:
+        vfs.write_text(path, content)
+        return f"Staged {len(content)} chars to {path} (not yet committed)"
+
     target = Path(path)  # 把字符串路径转成 Path 对象
 
     if target.exists() and target.is_dir():  # 如果路径已经存在，而且是目录

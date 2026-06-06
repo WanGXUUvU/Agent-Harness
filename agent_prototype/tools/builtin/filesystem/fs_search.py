@@ -20,42 +20,67 @@ from agent_prototype.tools.types import RiskLevel
 from pathlib import Path
 
 
-def search_text(query: str, path: str = ".") -> str:  # 在目录里搜索文本
-    """这是“全文检索”的具体执行函数。
-    就像你在整个项目文件夹里按快捷键 `Ctrl+Shift+F`（或者用命令 `grep`），输入你想找的字，它就会掘地三尺，把指定文件夹底下所有文本文件里的每一行都翻个遍，只要发现哪一行提到了你的字，就赶紧把“文件名 + 第几行 + 这一行的内容”通通记下来报给你。
+def _is_within_directory(root: Path, candidate: Path) -> bool:
+    try:
+        candidate.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
 
-    需要拿到的东西：
-    - query (str): 你想搜索的关键字。
-    - path (str, 默认 "."): 你想在哪个文件夹里开始搜（不填默认当前运行目录）。
 
-    会给出来的结果：
-    - str: 一个大长串文字，每行代表一个匹配结果，例如 `foo.txt:15: 这里包含关键字`。如果没有匹配项，就会温柔地告诉你没找着。
+def search_text(query: str, path: str = ".", __context__=None) -> str:
+    """这是"全文检索"的具体执行函数。
+    （搜索结果同时覆盖物理磁盘文件和 VFS 暂存区中的新内容，跳过暂存删除的文件。）
     """
-    target = Path(path)  # 把字符串路径转成 Path 对象
+    target = Path(path)
 
-    if not target.exists():  # 如果路径不存在
-        raise ValueError(f"Path not found: {path}")  # 明确报错
+    if not target.exists():
+        raise ValueError(f"Path not found: {path}")
 
-    if not target.is_dir():  # 如果不是目录
-        raise ValueError(f"Not a directory: {path}")  # 明确报错
+    if not target.is_dir():
+        raise ValueError(f"Not a directory: {path}")
 
-    matches = []  # 保存所有匹配结果
+    # 🟢 尝试从 context 拿到 VFS 实例
+    vfs = None
+    if __context__ is not None:
+        vfs = __context__.extra.get("vfs")
 
-    for file_path in target.rglob("*"):  # 递归遍历目录下所有文件
-        if not file_path.is_file():  # 如果不是文件就跳过
-            continue  # 继续下一个条目
+    matches = []
+    target_root = target.resolve()
 
-        try:  # 尝试按文本读取
-            content = file_path.read_text(encoding="utf-8")  # 读取文件内容
-        except UnicodeDecodeError:  # 如果不是文本文件
-            continue  # 跳过二进制或乱码文件
+    # ── A. 扫物理磁盘文件 ────────────────────────────────────────
+    for file_path in target.rglob("*"):
+        if not file_path.is_file():
+            continue
 
-        for line_no, line in enumerate(content.splitlines(), start=1):  # 按行搜索
-            if query in line:  # 如果这一行包含关键字
-                matches.append(f"{file_path}:{line_no}: {line.strip()}")  # 记录匹配结果
+        # 🟢 跳过 VFS 中标记为删除的文件（逻辑上已不存在）
+        if vfs is not None and not vfs.exists(str(file_path)):
+            continue
 
-    return "\n".join(matches) if matches else f"No matches for: {query}"  # 返回结果或空提示
+        try:
+            # 🟢 读文件时优先走 VFS（有暂存内容就用暂存内容，否则读磁盘）
+            content = vfs.read_text(str(file_path)) if vfs else file_path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, FileNotFoundError):
+            continue
 
+        for line_no, line in enumerate(content.splitlines(), start=1):
+            if query in line:
+                matches.append(f"{file_path}:{line_no}: {line.strip()}")
+
+    # ── B. 叠加扫 VFS 暂存区里的全新文件（物理磁盘上还不存在的） ──
+    if vfs is not None:
+        for staged_path, staged_content in vfs.staged_writes.items():
+            staged_file = Path(staged_path)
+            if not _is_within_directory(target_root, staged_file):
+                continue
+            if staged_file.exists():
+                continue
+
+            for line_no, line in enumerate(staged_content.splitlines(), start=1):
+                if query in line:
+                    matches.append(f"{staged_path}:{line_no}: {line.strip()}")
+
+    return "\n".join(matches) if matches else f"No matches for: {query}"
 
 SEARCH_TEXT_SCHEMA = {  # 给模型看的工具说明
     "type": "function",

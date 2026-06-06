@@ -16,6 +16,7 @@ from agent_prototype.memory.run.store import SqliteRunStore
 from agent_prototype.core.types import ModelUsage, ChatMessage
 from agent_prototype.execution.persistence.types import AgentInput, AgentOutput, RunMetadata
 from agent_prototype.execution.runtime.types import AgentState
+from agent_prototype.execution.runtime.vfs import RunVfsRegistry
 from agent_prototype.execution.streaming.sse import build_reply_preview
 
 
@@ -87,6 +88,10 @@ class RunPersistenceService:
             self.db.flush()
             self._run_store.update_run_status(run_id=run_id, status="completed")
             self.db.commit()
+            staged_vfs = RunVfsRegistry.get(run_id)
+            if staged_vfs is not None:
+                staged_vfs.commit_all()
+                RunVfsRegistry.take(run_id)
         except Exception:
             self.db.rollback()
             raise
@@ -141,6 +146,7 @@ class RunPersistenceService:
             )
             self._run_store.update_run_status(run_id=run_id, status="cancelled")
             self.db.commit()
+            RunVfsRegistry.discard(run_id)
         except Exception:
             self.db.rollback()
             raise
@@ -176,6 +182,10 @@ class RunPersistenceService:
                 state=agent_state,
             )
             self.db.commit()
+            staged_vfs = RunVfsRegistry.get(run_id)
+            if staged_vfs is not None:
+                staged_vfs.commit_all()
+                RunVfsRegistry.take(run_id)
         except Exception:
             self.db.rollback()
             raise

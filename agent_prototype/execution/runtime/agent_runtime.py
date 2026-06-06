@@ -71,7 +71,7 @@ class AgentRunner:
 
     # ── 非流式（保留备用） ────────────────────────────────────────────────────
 
-    def run(self, agent_input: AgentInput) -> AgentOutput:
+    def run(self, agent_input: AgentInput, run_id: Optional[str] = None) -> AgentOutput:
         """同步普通运行模式：让发动机一口气轰鸣运转到结束！
         把用户输入塞进历史，然后在大模型和工具调用之间来回循环，直到大模型给出最终文字回答，最后把整个运行包成一个 AgentOutput 吐出来。
         这个方法是“同步阻塞”的，会一直等完全部过程。
@@ -107,6 +107,8 @@ class AgentRunner:
                     tool_calls,
                     self.allow_tool_names,
                     event_index,
+                    session_id=agent_input.session_id,
+                    run_id=run_id,
                     workspace_path=getattr(agent_input, "workspace_path", None),
                 )
                 events.extend(tool_turn.events)
@@ -130,7 +132,11 @@ class AgentRunner:
 
     # ── 同步流式 ──────────────────────────────────────────────────────────────
 
-    def stream_run(self, agent_input: AgentInput) -> Iterator[Union[AgentEvent, str]]:
+    def stream_run(
+        self,
+        agent_input: AgentInput,
+        run_id: Optional[str] = None,
+    ) -> Iterator[Union[AgentEvent, str]]:
         """同步流式运行模式：像挤牙膏一样，实时把大模型吐出的每一个字和工具调用事件 yield 出来。
         适合在同步 SSE 场景下使用。
 
@@ -203,6 +209,8 @@ class AgentRunner:
                     tool_calls,
                     self.allow_tool_names,
                     event_index,
+                    session_id=agent_input.session_id,
+                    run_id=run_id,
                     workspace_path=getattr(agent_input, "workspace_path", None),
                 )
                 for event in tool_turn.events:

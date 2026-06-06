@@ -33,6 +33,7 @@ from agent_prototype.memory.run.store import SqliteRunStore
 from agent_prototype.tools.registry import build_run_registry
 from agent_prototype.execution.persistence.types import AgentInput, AgentOutput
 from agent_prototype.execution.runtime.agent_runtime import AgentRunner
+from agent_prototype.execution.runtime.vfs import RunVfsRegistry
 from agent_prototype.execution.child_agent_dispatcher import ChildAgentDispatcher
 from agent_prototype.execution.persistence.service import RunPersistenceService
 from agent_prototype.execution.streaming.stream_run_session import StreamRunSession
@@ -76,37 +77,55 @@ class RunService:
     def run_agent(self, agent_input: AgentInput) -> AgentOutput:
         """执行一次同步 run，并在结束后持久化结果。"""
         run_id = uuid.uuid4().hex
-        ctx = self.context_factory.build(agent_input)
-        agent = self._build_agent_runner(ctx, run_id, agent_input)
+        RunVfsRegistry.create(run_id)
 
-        output = agent.run(agent_input)
-        output.state.agent_name = ctx.effective_agent_name
-        return self.persist.save_completed(
-            agent_input=agent_input,
-            output=output,
-            effective_agent_name=ctx.effective_agent_name,
-            run_id=run_id,
-            usage=output.usage,
-            session_type=ctx.session_type,
-        )
+        try:
+            ctx = self.context_factory.build(agent_input)
+            agent = self._build_agent_runner(ctx, run_id, agent_input)
+
+            output = agent.run(agent_input, run_id=run_id)
+            output.state.agent_name = ctx.effective_agent_name
+            return self.persist.save_completed(
+                agent_input=agent_input,
+                output=output,
+                effective_agent_name=ctx.effective_agent_name,
+                run_id=run_id,
+                usage=output.usage,
+                session_type=ctx.session_type,
+            )
+        except Exception:
+            RunVfsRegistry.discard(run_id)
+            raise
 
     async def async_stream_agent(self, agent_input: AgentInput) -> AsyncIterator[str]:
         """执行一次流式 run，逐帧产出 SSE 数据。"""
         run_id = uuid.uuid4().hex
-        ctx = self.context_factory.build(agent_input)
-        observer = ToolRunObserver(
-            self.db,
-            self._run_store,
-            self.approval_store,
-            agent_input.session_id,
-            run_id,
-            agent_input,
-        )
-        agent = self._build_agent_runner(ctx, run_id, agent_input)
-        async for frame in StreamRunSession(
-            ctx, observer, agent, run_id, agent_input, self.persist
-        ).run():
-            yield frame
+        RunVfsRegistry.create(run_id)
+
+        try:
+            ctx = self.context_factory.build(agent_input)
+            observer = ToolRunObserver(
+                self.db,
+                self._run_store,
+                self.approval_store,
+                agent_input.session_id,
+                run_id,
+                agent_input,
+            )
+            agent = self._build_agent_runner(ctx, run_id, agent_input)
+
+            async for frame in StreamRunSession(
+                ctx,
+                observer,
+                agent,
+                run_id,
+                agent_input,
+                self.persist,
+            ).run():
+                yield frame
+        except Exception:
+            RunVfsRegistry.discard(run_id)
+            raise
 
     def finalize_run(
         self,

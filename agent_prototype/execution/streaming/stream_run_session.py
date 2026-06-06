@@ -206,7 +206,7 @@ class StreamRunSession:
             ),
         )
         output.state.agent_name = self.ctx.effective_agent_name
-        self.persist.save_completed(
+        output = self.persist.save_completed(
             agent_input=self.agent_input,
             output=output,
             effective_agent_name=self.ctx.effective_agent_name,

@@ -19,26 +19,27 @@ from agent_prototype.tools.types import ToolDefinition  # 导入工具定义
 from agent_prototype.tools.types import RiskLevel
 
 
-def read_file(path: str) -> str:  # 真正读文件的函数
-    """这是“读取文件内容”的具体执行函数。
-    就像你在电脑上双击用记事本打开一个文件查看里面的字，这个函数会把指定路径的文本文件以 UTF-8 编码读取出来，原封不动地交给你。
-
-    需要拿到的东西：
-    - path (str): 你想要读取的文件在电脑上的物理绝对路径。
-
-    会给出来的结果：
-    - str: 文件的完整文本内容。如果文件不存在或者它根本不是一个普通文件，它会大声报错通知你。
+def read_file(path: str, __context__=None) -> str:
+    """这是"读取文件内容"的具体执行函数。
+    （读取优先查 VFS 暂存区，命中则直接返回；没有命中才降级读物理磁盘。）
     """
-    target = Path(path)  # 把字符串路径转成 Path 对象
-
-    if not target.exists():  # 文件不存在
-        raise ValueError(f"File not found: {path}")  # 明确报错
-
-    if not target.is_file():  # 路径存在但不是文件
-        raise ValueError(f"Not a file: {path}")  # 明确报错
-
-    return target.read_text(encoding="utf-8")  # 读取 UTF-8 文本内容
-
+    # 🟢 优先检查 VFS 暂存区（可能有本次 Run 中其他工具刚暂存的新内容）
+    vfs = None
+    if __context__ is not None:
+        vfs = __context__.extra.get("vfs")
+    if vfs is not None:
+        try:
+            # 🟢 委托给 VFS 处理：命中返回暂存内容，标记删除则抛 FileNotFoundError，未暂存则降级读磁盘
+            return vfs.read_text(path)
+        except FileNotFoundError as exc:
+            raise ValueError(f"File not found: {path}") from exc
+    # 🔴 降级：没有 VFS，走原有的物理磁盘读取逻辑
+    target = Path(path)
+    if not target.exists():
+        raise ValueError(f"File not found: {path}")
+    if not target.is_file():
+        raise ValueError(f"Not a file: {path}")
+    return target.read_text(encoding="utf-8")
 
 READ_FILE_SCHEMA = {  # 给模型看的说明
     "type": "function",

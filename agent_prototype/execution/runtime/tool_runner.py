@@ -23,6 +23,7 @@ from typing import AsyncIterator, Optional, Union
 # ── 本地模块 ──────────────────────────────────────────────────────────────────
 from agent_prototype.core.types import ChatMessage, ToolCall
 from agent_prototype.execution.runtime.types import AgentEvent
+from agent_prototype.execution.runtime.vfs import RunVfsRegistry
 from agent_prototype.security.policy.types import ApprovalPolicy
 from agent_prototype.tools.registry import ToolRegistry
 from agent_prototype.tools.result_types import ToolResult
@@ -49,11 +50,48 @@ from agent_prototype.execution.runtime.types import ToolTurnResult
 # ── 同步工具执行 ──────────────────────────────────────────────────────────────
 
 
+def _build_tool_extra(
+    *,
+    run_id: Optional[str],
+    workspace_path: Optional[str],
+    allow_tool_names: Optional[list[str]] = None,
+    risk_level=None,
+    on_approval_required=None,
+    saved_messages: Optional[list[ChatMessage]] = None,
+    approval_policy: ApprovalPolicy = ApprovalPolicy.NEVER,
+    batch_id: Optional[str] = None,
+) -> dict:
+    extra: dict = {}
+
+    if workspace_path:
+        extra["workspace_path"] = workspace_path
+    if allow_tool_names is not None:
+        extra["allow_tool_names"] = allow_tool_names
+    if risk_level is not None:
+        extra["risk_level"] = risk_level
+    if on_approval_required is not None:
+        extra["on_approval_required"] = on_approval_required
+    if saved_messages is not None:
+        extra["saved_messages"] = saved_messages
+    extra["approval_policy"] = approval_policy
+    if batch_id is not None:
+        extra["batch_id"] = batch_id
+
+    if run_id:
+        vfs = RunVfsRegistry.get(run_id)
+        if vfs is not None:
+            extra["vfs"] = vfs
+
+    return extra
+
+
 def handle_tool_calls(
     tool_registry: ToolRegistry,
     tool_calls: list[ToolCall],
     allow_tool_names: Optional[list[str]],
     event_index: int,
+    session_id: str = "",
+    run_id: Optional[str] = None,
     workspace_path: Optional[str] = None,
 ) -> ToolTurnResult:
     """同步工具执行器：老老实实、挨个同步去调用大模型想用的那批工具。
@@ -93,8 +131,13 @@ def handle_tool_calls(
             tool_name=tool_call.function.name,
             tool_args=tool_call.function.arguments,
             tool_call_id=tool_call.id,
-            session_id="",
-            extra={"workspace_path": workspace_path} if workspace_path else {}
+            session_id=session_id,
+            run_id=run_id,
+            extra=_build_tool_extra(
+                run_id=run_id,
+                workspace_path=workspace_path,
+                allow_tool_names=allow_tool_names,
+            ),
         )
 
         tool_result = tool_registry.execute_tool_call(
@@ -253,15 +296,16 @@ async def async_handle_tool_calls(
             tool_call_id=item.tool_call_id,
             session_id=session_id,
             run_id=run_id,
-            extra={
-                "workspace_path": workspace_path,
-                "allow_tool_names": allow_tool_names,
-                "risk_level": risk,
-                "on_approval_required": on_approval_required,
-                "saved_messages": saved_messages,
-                "approval_policy": approval_policy,
-                "batch_id": batch.batch_id,
-            },
+            extra=_build_tool_extra(
+                run_id=run_id,
+                workspace_path=workspace_path,
+                allow_tool_names=allow_tool_names,
+                risk_level=risk,
+                on_approval_required=on_approval_required,
+                saved_messages=saved_messages,
+                approval_policy=approval_policy,
+                batch_id=batch.batch_id,
+            ),
             on_progress=progress_cb,
             loop=asyncio.get_event_loop(),
         )
