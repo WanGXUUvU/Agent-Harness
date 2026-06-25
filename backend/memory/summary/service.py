@@ -6,7 +6,7 @@
 - 将压缩后的状态快照写回 session，并收缩历史 run 的活跃范围。
 
 上游：
-- RunContextFactory
+- RunSetupBuilder
 - compact API route
 
 下游：
@@ -100,9 +100,11 @@ class CompactService:
             state.messages
         ) >= payload.trigger_threshold
 
-        from backend.execution.run_context_factory import RunContextFactory
+        from backend.execution.run_setup_builder import RunSetupBuilder
 
-        adapter = RunContextFactory(self.db).create_adapter(payload.session_id)
+        adapter = RunSetupBuilder(self.db).build_model_adapter(
+            payload.session_id
+        )
         compactor = HistoryCompactor(adapter)
 
         compact_result = self.auto_compact_in_memory(

@@ -8,7 +8,7 @@
 
 不负责：感知 HTTP 协议、直接操作 DB 模型。
 上游：approval_routes.py
-下游：RunContextFactory.create_adapter / RunRecorder.finalize_run
+下游：RunSetupBuilder.build_model_adapter / RunRecorder.finalize_run
 """
 
 # ── 标准库 ────────────────────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ from backend.execution.persistence.types import (
     RunInput,
     RunFinalizationInput,
     RunFinalStatus,
-    RunContext,
+    RunSetup,
 )
 from backend.execution.runtime.types import RunEvent
 from backend.tools.result_types import ToolResult
@@ -49,7 +49,7 @@ from backend.execution.runtime.run_lifecycle import (
 from backend.execution.streaming.sse import _sse_frame
 from backend.agent.definition import AgentDefinitionService
 from backend.execution.persistence.run_recorder import RunRecorder
-from backend.execution.run_context_factory import RunContextFactory
+from backend.execution.run_setup_builder import RunSetupBuilder
 from backend.execution.runtime.vfs import RunVfsRegistry
 from backend.observation.tool_tracer import ToolTracer
 
@@ -215,9 +215,13 @@ class ResumeRunService:
         )
 
         # ── 构造 AgentRunner，继续流式运转 ────────────────────────────────────
-        runtime_factory = RunContextFactory(self.db)
-        model_adapter = runtime_factory.create_adapter(approval.session_id)
-        approval_policy = runtime_factory._resolve_approval_policy(session_record)
+        run_setup_builder = RunSetupBuilder(self.db)
+        model_adapter = run_setup_builder.build_model_adapter(
+            approval.session_id
+        )
+        approval_policy = run_setup_builder.resolve_approval_policy(
+            session_record
+        )
 
         agent_runner = AgentRunner(
             state=state,
@@ -233,7 +237,7 @@ class ResumeRunService:
             skill_name=None,
         )
         workspace_path = session_record.workspace_path if session_record else None
-        ctx = RunContext(
+        run_setup = RunSetup(
             state=state,
             agent_profile=agent_profile,
             adapter=model_adapter,
@@ -250,7 +254,7 @@ class ResumeRunService:
         )
         lifecycle = RunLifecycle(
             RunLifecycleParams(
-                ctx=ctx,
+                setup=run_setup,
                 agent_runner=agent_runner,
                 recorder=self.recorder,
                 run_input=run_input,

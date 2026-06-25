@@ -14,7 +14,7 @@ from typing import AsyncIterator
 
 from backend.execution.persistence.run_recorder import RunRecorder
 from backend.execution.persistence.types import (
-    RunContext,
+    RunSetup,
     RunFinalStatus,
     RunInput,
 )
@@ -40,14 +40,14 @@ class RunSSEBridge:
 
     def __init__(
         self,
-        ctx: RunContext,
+        setup: RunSetup,
         observer: ToolTracer,
         agent_runner: AgentRunner,
         run_id: str,
         run_input: RunInput,
         recorder: RunRecorder,
     ):
-        self.ctx = ctx
+        self.setup = setup
         self.observer = observer
         self.agent_runner = agent_runner
         self.run_id = run_id
@@ -60,7 +60,7 @@ class RunSSEBridge:
 
         lifecycle = RunLifecycle(
             RunLifecycleParams(
-                ctx=self.ctx,
+                setup=self.setup,
                 agent_runner=self.agent_runner,
                 recorder=self.recorder,
                 run_input=self.run_input,

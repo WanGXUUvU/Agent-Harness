@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from backend.agent.types import AgentDefinition
 from backend.execution.persistence.run_recorder import RunRecorder
-from backend.execution.persistence.types import RunInput, RunContext
+from backend.execution.persistence.types import RunInput, RunSetup
 from backend.execution.runtime.agent_executor import _executor, _global_futures
 from backend.execution.runtime.agent_runner import AgentRunner
 from backend.execution.runtime.run_lifecycle import (
@@ -29,7 +29,7 @@ from backend.execution.runtime.run_lifecycle import (
 )
 from backend.execution.runtime.types import RunState
 from backend.execution.runtime.vfs import RunVfsRegistry
-from backend.execution.run_context_factory import RunContextFactory
+from backend.execution.run_setup_builder import RunSetupBuilder
 from backend.infra.db.engine import SessionLocal
 from backend.infra.db.orm_models import SessionRunRecord
 from backend.tools.registry import build_run_registry
@@ -145,7 +145,7 @@ class ChildRunLauncher:
                 if isinstance(path_val, str):
                     workspace_path = path_val
 
-            adapter = RunContextFactory(db).create_adapter(session_id)
+            adapter = RunSetupBuilder(db).build_model_adapter(session_id)
             child_state = RunState()
             definition = AgentDefinition(id=child_run_id, name=agent_name)
             agent_runner = AgentRunner(
@@ -163,7 +163,7 @@ class ChildRunLauncher:
                 user_input=task,
                 workspace_path=workspace_path,
             )
-            ctx = RunContext(
+            run_setup = RunSetup(
                 state=child_state,
                 agent_profile=definition,
                 adapter=adapter,
@@ -173,7 +173,7 @@ class ChildRunLauncher:
             )
             result = RunLifecycle(
                 RunLifecycleParams(
-                    ctx=ctx,
+                    setup=run_setup,
                     agent_runner=agent_runner,
                     recorder=RunRecorder(db),
                     run_input=run_input,

@@ -11,7 +11,7 @@ from backend.execution.persistence.types import RunInput
 from backend.execution.runtime.types import RunState
 from backend.execution.runtime.vfs import RunVfsRegistry
 from backend.execution.service import RunService
-from backend.execution.run_context_factory import RunContextFactory
+from backend.execution.run_setup_builder import RunSetupBuilder
 from backend.infra.db.orm_models import SessionRunRecord, ToolCallRecord
 from backend.memory.session.store import SessionStore
 from backend.tests.helpers.db import make_sqlite_test_db
@@ -124,7 +124,7 @@ class TestVfsAcceptance(unittest.IsolatedAsyncioTestCase):
             ]
         )
 
-        with patch.object(RunContextFactory, "_create_adapter", return_value=adapter):
+        with patch.object(RunSetupBuilder, "_build_model_adapter", return_value=adapter):
             db = self.session_local()
             try:
                 output = RunService(db).run(
@@ -162,7 +162,7 @@ class TestVfsAcceptance(unittest.IsolatedAsyncioTestCase):
         adapter = FakeAsyncAdapter("cancelled.txt", "staged then discarded")
 
         with (
-            patch.object(RunContextFactory, "_create_adapter", return_value=adapter),
+            patch.object(RunSetupBuilder, "_build_model_adapter", return_value=adapter),
             patch("backend.execution.streaming.sse_bridge.logger.exception"),
         ):
             db = self.session_local()

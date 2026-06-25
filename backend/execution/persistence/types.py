@@ -1,7 +1,7 @@
 """
 [L8 执行层 - 持久化子模块类型定义]
 
-执行层数据载体：RunContext + Run I/O 类型。
+执行层数据载体：RunSetup + Run I/O 类型。
 原先 RunInput/RunOutput/FinalizeRunInput/RunMetadata 在 core/types.py，现归位至本模块。
 """
 
@@ -19,8 +19,8 @@ from backend.security.policy.types import ApprovalPolicy
 
 
 @dataclass
-class RunContext:
-    """智能体单次运行所需的稳定背景物料。
+class RunSetup:
+    """智能体单次运行所需的稳定 setup。
 
     这是一份“运行前已经准备好”的静态上下文，RunLifecycle / AgentRunner
     都依赖它，但不会在执行过程中频繁重建。
@@ -48,7 +48,7 @@ class RunContext:
 class RunInput(BaseModel):
     """`/run` 请求体。"""
 
-    # 用户显式指定的 agent；为空时交给 RunContextFactory 决定默认值。
+    # 用户显式指定的 agent；为空时交给 RunSetupBuilder 决定默认值。
     agent_name: Optional[str] = None
     # 本轮 run 归属的 session。
     session_id: str = Field(min_length=1)

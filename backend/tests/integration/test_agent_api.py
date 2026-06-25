@@ -34,15 +34,15 @@ class TestAgentApi(unittest.TestCase):
         self.client = build_test_client(app, get_db, self.session_local)
         reset_skill_loader_cache()
 
-        # Mock RunContextFactory._create_adapter 绕过物理数据库配置校验，直接返回一个 mock 好的 ChatCompletionsAdapter
-        from backend.execution.run_context_factory import RunContextFactory
+        # Mock RunSetupBuilder._build_model_adapter 绕过物理数据库配置校验，直接返回一个 mock 好的 ChatCompletionsAdapter
+        from backend.execution.run_setup_builder import RunSetupBuilder
         from backend.core.adapters.chat_completions import (
             ChatCompletionsAdapter,
         )
 
         self.create_adapter_patcher = patch.object(
-            RunContextFactory,
-            "_create_adapter",
+            RunSetupBuilder,
+            "_build_model_adapter",
             return_value=ChatCompletionsAdapter(
                 api_key="mock-api-key",
                 base_url="mock-base-url",

@@ -1,7 +1,7 @@
 import unittest
 
 from backend.agent.types import AgentDefinition
-from backend.execution.persistence.types import RunContext, RunInput
+from backend.execution.persistence.types import RunSetup, RunInput
 from backend.core.types import ModelUsage, StreamChunk, ToolCall, ToolCallFunction
 from backend.execution.runtime.agent_runner import AgentRunner
 from backend.execution.runtime.run_lifecycle import (
@@ -314,7 +314,7 @@ class TestAsyncAgent(unittest.IsolatedAsyncioTestCase):
         )
         agent = _agent_for_echo(fake_adapter)
         recorder = FakeRecorder()
-        ctx = RunContext(
+        run_setup = RunSetup(
             state=agent.state,
             agent_profile=agent.agent_profile,
             adapter=fake_adapter,
@@ -324,7 +324,7 @@ class TestAsyncAgent(unittest.IsolatedAsyncioTestCase):
         )
         lifecycle = RunLifecycle(
             RunLifecycleParams(
-                ctx=ctx,
+                setup=run_setup,
                 agent_runner=agent,
                 recorder=recorder,
                 run_input=RunInput(session_id="session-a", user_input="帮我测试工具"),
@@ -349,7 +349,7 @@ class TestAsyncAgent(unittest.IsolatedAsyncioTestCase):
         fake_adapter = FakeMultiDeltaAsyncStreamAdapter()
         agent = _agent_for_echo(fake_adapter)
         recorder = FakeRecorder()
-        ctx = RunContext(
+        run_setup = RunSetup(
             state=agent.state,
             agent_profile=agent.agent_profile,
             adapter=fake_adapter,
@@ -359,7 +359,7 @@ class TestAsyncAgent(unittest.IsolatedAsyncioTestCase):
         )
         lifecycle = RunLifecycle(
             RunLifecycleParams(
-                ctx=ctx,
+                setup=run_setup,
                 agent_runner=agent,
                 recorder=recorder,
                 run_input=RunInput(session_id="session-a", user_input="帮我测试工具"),

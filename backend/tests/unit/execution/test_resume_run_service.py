@@ -92,7 +92,7 @@ class TestResumeRunService(unittest.IsolatedAsyncioTestCase):
                     ),
                 ) as load_definition,
                 patch(
-                    "backend.execution.resume.service.RunContextFactory.create_adapter",
+                    "backend.execution.resume.service.RunSetupBuilder.build_model_adapter",
                     return_value=object(),
                 ),
             ):
@@ -152,7 +152,7 @@ class TestResumeRunService(unittest.IsolatedAsyncioTestCase):
                     ),
                 ) as load_definition,
                 patch(
-                    "backend.execution.resume.service.RunContextFactory.create_adapter",
+                    "backend.execution.resume.service.RunSetupBuilder.build_model_adapter",
                     return_value=object(),
                 ),
                 patch.object(

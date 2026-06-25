@@ -11,7 +11,7 @@ from backend.core.types import StreamChunk, ModelUsage
 from backend.execution.persistence.run_recorder import RunRecorder
 from backend.execution.persistence.types import (
     RunInput,
-    RunContext,
+    RunSetup,
     RunFinalStatus,
     RunFinalizationInput,
 )
@@ -26,11 +26,11 @@ class RunLifecycleParams:
     """执行核心运行所需的最小物料。
 
     这是 RunLifecycle 的“动态执行上下文”。
-    相比 RunContext 的稳定背景物料，这里还包含一次执行具体如何启动、如何续跑的控制参数。
+    相比 RunSetup 的稳定背景物料，这里还包含一次执行具体如何启动、如何续跑的控制参数。
     """
 
     # 稳定运行背景：state / definition / adapter / approval_policy / workspace 等。
-    ctx: RunContext
+    setup: RunSetup
     # 已装配好的智能体执行发动机。
     agent_runner: AgentRunner
     # 终态收口器；执行层只在结束时把 finalization input 交给它。
@@ -147,7 +147,7 @@ class RunLifecycle:
                 skip_user_message=self.params.skip_user_message,
                 event_index=self.params.event_index,
                 run_id=self.params.run_id,
-                workspace_path=self.params.ctx.workspace_path,
+                workspace_path=self.params.setup.workspace_path,
             ):
                 if isinstance(item, str):
                     # 普通文本增量：一边累积，一边实时往上 yield。
@@ -243,7 +243,7 @@ class RunLifecycle:
             status=status,
             user_input=self.params.run_input.user_input,
             reply=reply,
-            agent_name=self.params.ctx.effective_agent_name,
+            agent_name=self.params.setup.effective_agent_name,
             events=events,
             state=self.params.agent_runner.state,
             usage=getattr(self.params.agent_runner, "last_usage", None),

@@ -21,7 +21,7 @@ from backend.tests.helpers.factories import build_run_output
 
 _MOCK_PATH = "backend.execution.child_run_launcher.AgentRunner"
 _BUILDER_MOCK_PATH = (
-    "backend.execution.run_context_factory.RunContextFactory.create_adapter"
+    "backend.execution.run_setup_builder.RunSetupBuilder.build_model_adapter"
 )
 
 

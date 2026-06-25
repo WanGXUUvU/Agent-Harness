@@ -9,7 +9,7 @@
 - API routes
 
 下游：
-- RunContextFactory
+- RunSetupBuilder
 - AgentRunner / RunSSEBridge
 - RunRecorder / TraceQueryService / ChildRunLauncher
 
@@ -48,7 +48,7 @@ from backend.execution.runtime.vfs import RunVfsRegistry
 from backend.execution.child_run_launcher import ChildRunLauncher
 from backend.execution.persistence.run_recorder import RunRecorder
 from backend.execution.streaming.sse_bridge import RunSSEBridge
-from backend.execution.run_context_factory import RunContextFactory
+from backend.execution.run_setup_builder import RunSetupBuilder
 from backend.execution.trace_query_service import TraceQueryService
 
 
@@ -62,18 +62,18 @@ class RunService:
         self._run_store = RunTraceStore(db)
         self.approval_store = SqliteApprovalStore(db)
         self.recorder = RunRecorder(db)
-        self.context_factory = RunContextFactory(db)
+        self.run_setup_builder = RunSetupBuilder(db)
         self.child_dispatcher = ChildRunLauncher(db)
         self.trace_query = TraceQueryService(db, self._run_store)
 
     def _create_agent_runner(
-        self, ctx, run_id: str, run_input: RunInput
+        self, run_setup, run_id: str, run_input: RunInput
     ) -> AgentRunner:
         """基于运行物料和协作者构造 AgentRunner。"""
         return AgentRunner(
-            state=ctx.state,
-            agent_profile=ctx.agent_profile,
-            model_adapter=ctx.adapter,
+            state=run_setup.state,
+            agent_profile=run_setup.agent_profile,
+            model_adapter=run_setup.adapter,
             tool_registry=build_run_registry(
                 child_dispatcher=self.child_dispatcher.create_launcher(
                     run_id, run_input.session_id
@@ -81,7 +81,7 @@ class RunService:
                 status_checker=self.child_dispatcher.create_status_checker(),
                 child_waiter=self.child_dispatcher.create_waiter(),
             ),
-            approval_policy=ctx.approval_policy,
+            approval_policy=run_setup.approval_policy,
         )
 
     # ── 公开方法 ──────────────────────────────────────────────────────────────
@@ -92,19 +92,21 @@ class RunService:
         RunVfsRegistry.create(run_id)
 
         try:
-            ctx = self.context_factory.assemble(run_input)
-            agent_runner = self._create_agent_runner(ctx, run_id, run_input)
+            run_setup = self.run_setup_builder.build(run_input)
+            agent_runner = self._create_agent_runner(
+                run_setup, run_id, run_input
+            )
 
             result = RunLifecycle(
                 RunLifecycleParams(
-                    ctx=ctx,
+                    setup=run_setup,
                     agent_runner=agent_runner,
                     recorder=self.recorder,
                     run_input=run_input,
                     run_id=run_id,
                 )
             ).execute_sync()
-            result.state.agent_name = ctx.effective_agent_name
+            result.state.agent_name = run_setup.effective_agent_name
             return RunOutput(
                 reply=result.reply,
                 state=result.state,
@@ -112,7 +114,7 @@ class RunService:
                 metadata=RunMetadata(
                     session_id=run_input.session_id,
                     run_id=run_id,
-                    agent_name=ctx.effective_agent_name,
+                    agent_name=run_setup.effective_agent_name,
                 ),
                 usage=result.usage,
             )
@@ -126,7 +128,7 @@ class RunService:
         RunVfsRegistry.create(run_id)
 
         try:
-            ctx = self.context_factory.assemble(run_input)
+            run_setup = self.run_setup_builder.build(run_input)
             observer = ToolTracer(
                 self.db,
                 self._run_store,
@@ -134,10 +136,12 @@ class RunService:
                 run_input.session_id,
                 run_id=run_id,
             )
-            agent_runner = self._create_agent_runner(ctx, run_id, run_input)
+            agent_runner = self._create_agent_runner(
+                run_setup, run_id, run_input
+            )
 
             async for frame in RunSSEBridge(
-                ctx,
+                run_setup,
                 observer,
                 agent_runner,
                 run_id,
