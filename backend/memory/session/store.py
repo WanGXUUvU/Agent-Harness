@@ -55,7 +55,6 @@ class SessionStore:
         context_tokens: Optional[int] = None,
         workspace_path=_UNSET,
         workspace_name=_UNSET,
-        session_type=_UNSET,
     ) -> SessionRecord:
         """保存或更新一个 session 的状态快照。"""
         state_json = json.dumps(state.model_dump(), ensure_ascii=False)
@@ -84,8 +83,6 @@ class SessionStore:
                 record.workspace_name = workspace_name
             if workspace_path is not _UNSET:
                 record.workspace_path = workspace_path
-            if session_type is not _UNSET:
-                record.session_type = session_type
             record.context_tokens = context_tokens
         else:
             record = SessionRecord(
@@ -100,7 +97,6 @@ class SessionStore:
                 context_tokens=context_tokens,
                 workspace_path=None if workspace_path is _UNSET else workspace_path,
                 workspace_name=None if workspace_name is _UNSET else workspace_name,
-                session_type="coding" if session_type is _UNSET else session_type,
             )
             self.db.add(record)
 

@@ -169,7 +169,6 @@ async def async_handle_tool_calls(
     approval_policy: ApprovalPolicy = ApprovalPolicy.NEVER,
     on_approval_required=None,
     saved_messages: Optional[list[ChatMessage]] = None,
-    session_type: str = "coding",
 ) -> AsyncIterator[Union[RunEvent, ToolBatchResult]]:
     """异步流式工具执行引擎。
 
@@ -210,10 +209,7 @@ async def async_handle_tool_calls(
         current_index += 1
 
     # 2. 初始化中间件管道
-    if session_type == "coding":
-        pipeline = MiddlewarePipeline([SandboxMiddleware()])
-    else:
-        pipeline = MiddlewarePipeline([])
+    pipeline = MiddlewarePipeline([SandboxMiddleware()])
 
     # 3. 定义单个工具的执行协程 Worker
     async def run_single_tool(item: ToolBatchItem):

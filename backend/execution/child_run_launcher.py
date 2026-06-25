@@ -170,7 +170,6 @@ class ChildRunLauncher:
                 approval_policy=ApprovalPolicy.NEVER,
                 effective_agent_name=agent_name,
                 workspace_path=workspace_path or "",
-                session_type="coding",
             )
             result = RunLifecycle(
                 RunLifecycleParams(

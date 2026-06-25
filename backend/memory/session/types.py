@@ -17,7 +17,6 @@ class CreateSessionInput(BaseModel):
     session_name: Optional[str] = Field(default=None, min_length=1)
     workspace_path: Optional[str] = None
     workspace_name: Optional[str] = None
-    session_type: Optional[str] = Field(default="coding")
 
 
 class RenameSessionInput(BaseModel):
@@ -53,7 +52,6 @@ class SessionSummary(BaseModel):
     context_tokens: Optional[int] = None
     workspace_path: Optional[str] = None
     workspace_name: Optional[str] = None
-    session_type: Optional[str] = Field(default="coding")
     parent_session_id: Optional[str] = None
     fork_message_index: Optional[int] = None
 

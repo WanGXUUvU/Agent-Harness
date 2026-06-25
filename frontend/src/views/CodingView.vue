@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useWorkspace } from '../composables/useWorkspace';
 import GlobalNav from '../components/layout/GlobalNav.vue';
 import SessionSidebar from '../components/SessionSidebar.vue';
@@ -66,19 +66,7 @@ const wCustomAgents = computed(() => workspace.customAgents.value);
 const openChildAgents = ref<ChildAgentInfo[]>([]);
 const activeChildAgentIndex = ref<number | null>(null);
 
-// 过滤开发项目会话，确保开发侧边栏只显示 coding 会话
-const codingSessions = computed(() => {
-  return workspace.sessions.value.filter(s => s.session_type === 'coding');
-});
-
-// 锁死当前开发视窗活跃会话，防止从个人助理返回时会话状态错乱
-watch([() => workspace.activeSessionId.value, () => workspace.sessions.value], () => {
-  const activeSess = workspace.sessions.value.find(s => s.session_id === workspace.activeSessionId.value);
-  if (activeSess && activeSess.session_type !== 'coding') {
-    const firstCoding = workspace.sessions.value.find(s => s.session_type === 'coding');
-    workspace.activeSessionId.value = firstCoding ? firstCoding.session_id : null;
-  }
-}, { immediate: true });
+const visibleSessions = computed(() => workspace.sessions.value);
 
 // 右侧子 Agent 面板宽度（可拖动调整）
 const childPanelWidth = ref(380);
@@ -182,7 +170,7 @@ const handleCloseChildAgent = (index: number) => {
 const handleSelectWorkspaceDialog = async () => {
   const ws = await workspace.selectWorkspaceDialog();
   if (ws) {
-    await workspace.createNewSession(ws.path, ws.name, undefined, 'coding');
+    await workspace.createNewSession(ws.path, ws.name);
   }
 };
 
@@ -218,12 +206,12 @@ onMounted(() => {
       
       <!-- 2. Main Chat Workspace (Always visible as background) -->
       <SessionSidebar 
-        :sessions="codingSessions"
+        :sessions="visibleSessions"
         :workspaces="wWorkspaces"
         :activeId="wActiveSessionId"
         :childAgentsBySession="wChildAgentsBySession"
         @select="(id: string) => workspace.activeSessionId.value = id"
-        @new="(wsPath: string | null, wsName: string | null) => workspace.createNewSession(wsPath, wsName, undefined, 'coding')"
+        @new="(wsPath: string | null, wsName: string | null) => workspace.createNewSession(wsPath, wsName)"
         @delete="workspace.deleteSession"
         @rename="workspace.renameSession"
         @open-child-agent="handleOpenChildAgent"
@@ -368,7 +356,7 @@ onMounted(() => {
                       v-for="ws in wWorkspaces.slice(0, 4)" 
                       :key="ws.id" 
                       class="recent-ws-card"
-                      @click="workspace.createNewSession(ws.path, ws.name, undefined, 'coding')"
+                      @click="workspace.createNewSession(ws.path, ws.name)"
                     >
                       <div class="ws-card-glow"></div>
                       <span class="ws-card-icon">📁</span>

@@ -19,7 +19,6 @@ export interface SessionSummary {
   context_tokens?: number | null;
   workspace_path?: string | null;
   workspace_name?: string | null;
-  session_type?: 'coding' | 'assistant';
   parent_session_id?: string | null;
   fork_message_index?: number | null;
 }

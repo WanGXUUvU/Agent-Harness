@@ -86,7 +86,6 @@ public struct SessionSummary: Codable, Identifiable, Equatable {
     public let contextTokens: Int?
     public let workspacePath: String?
     public let workspaceName: String?
-    public let sessionType: String?
     public let parentSessionId: String?
     public let forkMessageIndex: Int?
     
@@ -102,7 +101,6 @@ public struct SessionSummary: Codable, Identifiable, Equatable {
         case contextTokens = "context_tokens"
         case workspacePath = "workspace_path"
         case workspaceName = "workspace_name"
-        case sessionType = "session_type"
         case parentSessionId = "parent_session_id"
         case forkMessageIndex = "fork_message_index"
     }
@@ -120,7 +118,6 @@ public struct SessionDetail: Codable, Equatable {
     public let contextTokens: Int?
     public let workspacePath: String?
     public let workspaceName: String?
-    public let sessionType: String?
     public let state: RunState
     public let modelId: String?
     public let modelProviderId: Int?
@@ -140,7 +137,6 @@ public struct SessionDetail: Codable, Equatable {
         case contextTokens = "context_tokens"
         case workspacePath = "workspace_path"
         case workspaceName = "workspace_name"
-        case sessionType = "session_type"
         case state
         case modelId = "model_id"
         case modelProviderId = "model_provider_id"

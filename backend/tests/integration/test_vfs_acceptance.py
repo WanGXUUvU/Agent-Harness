@@ -26,7 +26,6 @@ def _seed_session(session_local, session_id: str, workspace_path: Path) -> None:
             session_id,
             state=RunState(),
             workspace_path=str(workspace_path),
-            session_type="coding",
         )
         record.permission_profile = "full-auto"
         db.commit()

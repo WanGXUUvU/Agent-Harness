@@ -38,8 +38,6 @@ class RunContext:
     effective_agent_name: str
     # 物理工作区路径；文件类工具最终会基于它做路径解析与 VFS 叠加。
     workspace_path: str
-    # 会话类型；影响 prompt 组装、默认 agent 选择以及部分 UI/落库语义。
-    session_type: str
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

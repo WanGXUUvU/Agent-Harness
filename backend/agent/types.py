@@ -15,7 +15,7 @@ class AgentDefinition(BaseModel):
 
     id: str = Field(default="default")
     name: str = Field(default="Default Agent")
-    system_prompt: str = Field(default="你是一个助手")
+    system_prompt: str = Field(default="")
     description: Optional[str] = None
     tool_names: Optional[list[str]] = None
     is_builtin: bool = False

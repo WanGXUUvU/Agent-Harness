@@ -88,10 +88,10 @@ async function* streamSse(url: string, init: RequestInit): AsyncGenerator<Stream
 
 export const api = {
   getSessions: () => fetchApi<SessionSummary[]>('/sessions'),
-  createSession: (workspace_path?: string | null, workspace_name?: string | null, session_name?: string, session_type?: string) =>
+  createSession: (workspace_path?: string | null, workspace_name?: string | null, session_name?: string) =>
     fetchApi<SessionSummary>('/sessions', {
       method: 'POST',
-      body: JSON.stringify({ workspace_path, workspace_name, session_name, session_type }),
+      body: JSON.stringify({ workspace_path, workspace_name, session_name }),
     }),
   getWorkspaces: () => fetchApi<WorkspaceSummary[]>('/workspaces'),
   selectWorkspaceDialog: () => fetchApi<WorkspaceSummary>('/workspaces/select-dialog', { method: 'POST' }),

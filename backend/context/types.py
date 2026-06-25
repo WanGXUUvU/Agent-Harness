@@ -15,3 +15,11 @@ class AssembledContext:
 
     system_prompt: str
     workspace_path: Optional[str]
+
+
+@dataclass
+class SkillPromptContext:
+    """技能相关的提示词原始数据。"""
+
+    skills: list
+    selected_skill_content: Optional[str]

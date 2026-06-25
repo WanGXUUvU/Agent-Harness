@@ -146,11 +146,10 @@ export function useSessionState(options: SessionStateOptions) {
     workspacePath?: string | null,
     workspaceName?: string | null,
     sessionName?: string,
-    sessionType: string = 'coding',
   ) => {
     try {
       isChatLoading.value = true;
-      const newSession = await api.createSession(workspacePath, workspaceName, sessionName, sessionType);
+      const newSession = await api.createSession(workspacePath, workspaceName, sessionName);
       await loadSessions(newSession.session_id);
       historyMessages.value = [];
       currentMessages.value = [];

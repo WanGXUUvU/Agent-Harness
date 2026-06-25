@@ -240,7 +240,6 @@ class ResumeRunService:
             approval_policy=approval_policy,
             effective_agent_name=agent_name,
             workspace_path=workspace_path or "",
-            session_type="coding",
         )
         observer = ToolTracer(
             self.db,

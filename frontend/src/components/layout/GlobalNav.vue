@@ -1,9 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-
-const props = defineProps<{
-  mode?: "coding" | "assistant";
+defineProps<{
   activeView: string;
 }>();
 
@@ -11,36 +7,6 @@ const emit = defineEmits<{
   (e: 'update:activeView', view: string): void;
   (e: 'action', action: string): void;
 }>();
-
-const router = useRouter();
-const route = useRoute();
-
-// 当前所处路由模式
-const currentMode = computed(() => {
-  if (route.path.startsWith('/assistant')) return 'assistant';
-  return 'coding';
-});
-
-// 模式切换
-const switchMode = (mode: 'coding' | 'assistant') => {
-  if (mode === currentMode.value) return;
-  router.push(mode === 'coding' ? '/coding' : '/assistant');
-};
-
-const modeItems = [
-  {
-    id: 'coding',
-    label: 'Code Agent',
-    tooltip: '代码智能体模式',
-    svg: `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="1.5" fill="none"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>`,
-  },
-  {
-    id: 'assistant',
-    label: 'Assistant',
-    tooltip: '助理模式',
-    svg: `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="1.5" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`,
-  },
-];
 
 const actionItems = [
   { id: 'plugins', action: 'open-plugins', label: 'Plugins', tooltip: 'MCP 插件市场', svg: `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="1.5" fill="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>` },
@@ -58,27 +24,7 @@ const actionItems = [
       </div>
     </div>
 
-    <!-- 模式切换区 (顶部) -->
-    <div class="nav-section">
-      <div class="nav-section-label">MODE</div>
-      <div class="nav-group">
-        <button
-          v-for="item in modeItems"
-          :key="item.id"
-          class="nav-item"
-          :class="{ 'is-active': currentMode === item.id }"
-          :title="item.tooltip"
-          @click="switchMode(item.id as 'coding' | 'assistant')"
-        >
-          <span class="nav-icon" v-html="item.svg"></span>
-          <div v-if="currentMode === item.id" class="nav-active-indicator"></div>
-        </button>
-      </div>
-    </div>
-
-    <div class="nav-divider"></div>
-
-    <!-- 操作区 (中部) -->
+    <!-- 操作区 -->
     <div class="nav-section nav-actions-section">
       <div class="nav-section-label">TOOLS</div>
       <div class="nav-group">
@@ -153,13 +99,6 @@ const actionItems = [
   width: 100%;
 }
 
-.nav-divider {
-  width: 32px;
-  height: 1px;
-  background: var(--border-dim);
-  margin: 4px auto;
-}
-
 .nav-item {
   position: relative;
   width: calc(100% - 16px);
@@ -179,28 +118,6 @@ const actionItems = [
 .nav-item:hover {
   color: var(--text-primary);
   background: var(--bg-hover);
-}
-
-.nav-item.is-active {
-  color: var(--accent);
-  background: var(--accent-subtle, rgba(255,255,255,0.06));
-}
-
-/* 左侧高亮条 */
-.nav-active-indicator {
-  position: absolute;
-  left: -8px;
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
-  background: var(--accent);
-  border-radius: 0 2px 2px 0;
-  animation: navSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes navSlideIn {
-  from { opacity: 0; transform: scaleY(0.4); }
-  to { opacity: 1; transform: scaleY(1); }
 }
 
 .nav-icon {

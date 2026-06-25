@@ -67,7 +67,7 @@ def _load_agent_md(md_file: Path) -> Optional[AgentDefinition]:
             name=frontmatter.get("name") or agent_id,
             description=frontmatter.get("description"),
             tool_names=frontmatter.get("tool_names"),
-            system_prompt=body.strip() or "你是一个助手",
+            system_prompt=body.strip(),
         )
     except Exception:
         return None

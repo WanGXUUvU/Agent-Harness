@@ -14,8 +14,7 @@ const router = createRouter({
     },
     {
       path: '/assistant',
-      name: 'Assistant',
-      component: () => import('../views/AssistantView.vue')
+      redirect: '/coding'
     }
   ]
 })

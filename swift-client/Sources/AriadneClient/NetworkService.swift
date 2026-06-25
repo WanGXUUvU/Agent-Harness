@@ -99,14 +99,12 @@ public class AriadneNetworkService: ObservableObject {
     public func createSession(
         workspacePath: String? = nil,
         workspaceName: String? = nil,
-        sessionName: String? = nil,
-        sessionType: String = "coding"
+        sessionName: String? = nil
     ) async throws -> SessionSummary {
         var payload: [String: Any] = [:]
         if let workspacePath { payload["workspace_path"] = workspacePath }
         if let workspaceName { payload["workspace_name"] = workspaceName }
         if let sessionName { payload["session_name"] = sessionName }
-        payload["session_type"] = sessionType
         
         let data = try JSONSerialization.data(withJSONObject: payload)
         return try await request("sessions", method: "POST", body: data)
@@ -388,4 +386,3 @@ public class AriadneNetworkService: ObservableObject {
         }
     }
 }
-

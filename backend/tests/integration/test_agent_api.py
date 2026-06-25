@@ -110,6 +110,7 @@ class TestAgentApi(unittest.TestCase):
                     "tool_name": None,
                     "tool_call_id": None,
                     "tool_result": None,
+                    "transient": False,
                 }
             ],
         )
@@ -449,9 +450,10 @@ class TestAgentApi(unittest.TestCase):
         request = mock_generate.call_args.args[0]
         system_prompt = request.messages[0].content
 
-        self.assertIn("Available skills:", system_prompt)
+        self.assertIn("<AVAILABLE_SKILLS>", system_prompt)
         self.assertIn("openai-docs: 查 OpenAI 官方文档", system_prompt)
-        self.assertIn("Selected skill instructions:", system_prompt)
+        self.assertIn("<DYNAMIC_CONTEXT_BOUNDARY>", system_prompt)
+        self.assertIn("<SELECTED_SKILL>", system_prompt)
         self.assertIn("FULL SKILL BODY", system_prompt)
 
         db = self.session_local()
@@ -507,9 +509,10 @@ class TestAgentApi(unittest.TestCase):
         request = mock_generate.call_args.args[0]
         system_prompt = request.messages[0].content
 
-        self.assertIn("Available skills:", system_prompt)
+        self.assertIn("<AVAILABLE_SKILLS>", system_prompt)
         self.assertIn("openai-docs: 查 OpenAI 官方文档", system_prompt)
-        self.assertNotIn("Selected skill instructions:", system_prompt)
+        self.assertNotIn("<DYNAMIC_CONTEXT_BOUNDARY>", system_prompt)
+        self.assertNotIn("<SELECTED_SKILL>", system_prompt)
         self.assertNotIn("FULL SKILL BODY", system_prompt)
 
         db = self.session_local()
@@ -749,7 +752,7 @@ class TestAgentApi(unittest.TestCase):
         self.assertNotIn("state_json", data[0])
         self.assertEqual(data[0]["message_count"], 4)
         self.assertEqual(data[0]["last_reply_preview"], "first reply")
-        self.assertEqual(data[0]["last_agent_name"], "software_engineer")
+        self.assertEqual(data[0]["last_agent_name"], "default")
         self.assertIn("created_at", data[0])
         self.assertIn("updated_at", data[0])
 

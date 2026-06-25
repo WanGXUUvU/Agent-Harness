@@ -112,26 +112,15 @@ struct WelcomeView: View {
     private var actionRow: some View {
         HStack(spacing: AriadneDesign.Space.md) {
             WelcomeActionButton(
-                title: "New coding session",
+                title: "New session",
                 detail: currentWorkspaceLabel,
                 systemImage: "terminal"
             ) {
                 Task {
                     await viewModel.createNewSession(
                         workspacePath: viewModel.currentSessionDetail?.workspacePath,
-                        workspaceName: viewModel.currentSessionDetail?.workspaceName,
-                        sessionType: "coding"
+                        workspaceName: viewModel.currentSessionDetail?.workspaceName
                     )
-                }
-            }
-
-            WelcomeActionButton(
-                title: "New assistant session",
-                detail: "General conversation",
-                systemImage: "bubble.left.and.bubble.right"
-            ) {
-                Task {
-                    await viewModel.createNewSession(sessionType: "assistant")
                 }
             }
 
@@ -260,8 +249,7 @@ struct RecentWorkspaceRow: View {
             Task {
                 await viewModel.createNewSession(
                     workspacePath: workspace.path,
-                    workspaceName: workspace.name,
-                    sessionType: "coding"
+                    workspaceName: workspace.name
                 )
             }
         } label: {
@@ -306,7 +294,7 @@ struct RecentSessionRow: View {
             }
         } label: {
             HStack(spacing: AriadneDesign.Space.md) {
-                Image(systemName: session.sessionType == "coding" ? "terminal" : "text.bubble")
+                Image(systemName: "terminal")
                     .foregroundStyle(.secondary)
                     .frame(width: 18)
                 VStack(alignment: .leading, spacing: 2) {
@@ -320,7 +308,7 @@ struct RecentSessionRow: View {
                         .lineLimit(1)
                 }
                 Spacer()
-                AriadneBadge(text: session.sessionType == "assistant" ? "Assistant" : "Coding", color: .secondary)
+                AriadneBadge(text: "Session", color: .secondary)
                     .opacity(isHovered ? 1 : 0.65)
             }
             .padding(.horizontal, AriadneDesign.Space.lg)

@@ -53,8 +53,7 @@ struct SessionSidebarView: View {
                     Task {
                         await viewModel.createNewSession(
                             workspacePath: viewModel.currentSessionDetail?.workspacePath,
-                            workspaceName: viewModel.currentSessionDetail?.workspaceName,
-                            sessionType: "coding"
+                            workspaceName: viewModel.currentSessionDetail?.workspaceName
                         )
                     }
                 } label: {
@@ -181,7 +180,7 @@ struct SessionSidebarView: View {
                     .padding(.top, 3)
             }
 
-            Image(systemName: session.sessionType == "coding" ? "terminal" : "text.bubble")
+            Image(systemName: "terminal")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(isSelected ? AriadneDesign.ColorToken.accent : .secondary)
                 .frame(width: 16)

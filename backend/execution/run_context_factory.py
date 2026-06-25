@@ -39,10 +39,7 @@ from backend.infra.db.orm_models import (
 )
 from backend.memory.session.store import SessionStore
 from backend.memory.summary.service import CompactService
-from backend.prompt.builder import (
-    build_runtime_system_prompt,
-    build_skill_catalog_prompt,
-)
+from backend.prompt.builder import build_runtime_system_prompt
 from backend.prompt.strategies.thinking import build_thinking_payload
 from backend.security.policy.types import PROFILES
 
@@ -70,7 +67,6 @@ class RunContextFactory:
         context_tokens = (
             record.context_tokens if record and record.context_tokens else 0
         )
-        session_type = record.session_type if record else "assistant"
         workspace_path = record.workspace_path if record else None
 
         context_length = self._resolve_context_length(record, context_tokens)
@@ -86,21 +82,17 @@ class RunContextFactory:
             )
             state = compact_result.state
 
-        effective_agent_name = self._resolve_effective_agent_name(
-            run_input, session_type
-        )
+        effective_agent_name = self._resolve_effective_agent_name(run_input)
         definition = AgentDefinitionService(self.db).load_definition(
             effective_agent_name
         )
 
         assembler = ContextAssembler(
             self.db,
-            build_skill_catalog_prompt=build_skill_catalog_prompt,
             build_runtime_system_prompt=build_runtime_system_prompt,
         )
         assembled_ctx = assembler.assemble(
             run_input=run_input,
-            session_type=session_type,
             workspace_path=workspace_path,
             definition=definition,
         )
@@ -118,7 +110,6 @@ class RunContextFactory:
             approval_policy=approval_policy,
             effective_agent_name=effective_agent_name,
             workspace_path=workspace_path,
-            session_type=session_type,
         )
 
     def create_adapter(self, session_id: str) -> ChatCompletionsAdapter:
@@ -156,11 +147,8 @@ class RunContextFactory:
     def _resolve_effective_agent_name(
         self,
         run_input: RunInput,
-        session_type: str,
     ) -> str:
         """解析本轮实际使用的 agent 名称。"""
-        if session_type == "coding":
-            return "software_engineer"
         return run_input.agent_name or "default"
 
     def _resolve_approval_policy(self, record: Optional[SessionRecord]):

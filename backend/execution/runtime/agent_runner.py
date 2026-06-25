@@ -44,7 +44,6 @@ class AgentRunner:
         tool_registry: Optional[ToolRegistry] = None,
         model_adapter: Optional[ModelAdapter] = None,
         approval_policy: ApprovalPolicy = ApprovalPolicy.NEVER,
-        session_type: str = "coding",
     ):
         """组装这个智能体发动机，给他配置好初始聊天状态、人设定义、可用的工具箱、大模型电话线、审批策略等参数。
 
@@ -55,7 +54,6 @@ class AgentRunner:
         - allow_tool_names: 这次运行允许调用的工具名字清单（不传就用人设定义里的）。
         - model_adapter: 大模型适配器（大模型电话线）。
         - approval_policy: 审批策略，决定调用工具时需不需要人类手动审批（默认从不审批）。
-        - session_type: 会话类型（默认是写代码模式 "coding"）。
         """
         self.state = state or RunState()
         self.agent_profile = agent_profile or DEFAULT_AGENT_DEFINITION
@@ -63,7 +61,6 @@ class AgentRunner:
         self.model_adapter = model_adapter
         self.approval_policy = approval_policy
         self.last_usage = None
-        self.session_type = session_type
 
     # ── 非流式（保留备用） ────────────────────────────────────────────────────
 
@@ -268,7 +265,6 @@ class AgentRunner:
                     saved_messages=list(self.state.messages),
                     run_id=run_id,
                     workspace_path=workspace_path,
-                    session_type=getattr(self, "session_type", "coding"),
                 ):
                     if isinstance(item, RunEvent):
                         yield item

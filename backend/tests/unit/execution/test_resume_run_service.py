@@ -25,7 +25,6 @@ def _seed_session(db, session_id: str, workspace_path: Path) -> None:
         session_id=session_id,
         state=RunState(),
         workspace_path=str(workspace_path),
-        session_type="coding",
     )
 
 

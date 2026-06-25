@@ -64,7 +64,7 @@ class SessionService:
         这个函数会自动生成一个独一无二的会话 ID，查一下数据库有没有默认的 AI 模型和模型供应商，有的话就自动和这个新会话绑定。然后把这些配置信息存进数据库，最后把新创建的会话信息打包好返还给调用方。
 
         需要拿到的东西：
-        - payload (CreateSessionInput): 创建会话所需的入参。这里面包括会话叫什么名字（session_name）、关联的工作空间路径（workspace_path）和名称（workspace_name），以及会话类型等。
+        - payload (CreateSessionInput): 创建会话所需的入参。这里面包括会话叫什么名字（session_name）、关联的工作空间路径（workspace_path）和名称（workspace_name）。
 
         会给出来的结果：
         - SessionSummary: 一个精简的会话信息包，里面包含了这个新会话的 ID、名字、创建时间、更新时间、包含的消息数量、工作空间等各种常用属性。
@@ -100,7 +100,6 @@ class SessionService:
                 last_reply_preview=None,
                 workspace_path=payload.workspace_path,
                 workspace_name=payload.workspace_name,
-                session_type=payload.session_type,
             )
             record.model_provider_id = default_provider_id
             record.model_id = default_model_id
@@ -121,7 +120,6 @@ class SessionService:
             permission_profile=record.permission_profile,
             workspace_path=record.workspace_path,
             workspace_name=record.workspace_name,
-            session_type=record.session_type,
         )
 
     def reset_session(self, payload: ResetInput) -> dict[str, bool]:
@@ -262,7 +260,6 @@ class SessionService:
                 context_tokens=record.context_tokens,
                 workspace_path=record.workspace_path,
                 workspace_name=record.workspace_name,
-                session_type=record.session_type,
                 parent_session_id=record.parent_session_id,
                 fork_message_index=record.fork_message_index,
             )
@@ -379,7 +376,6 @@ class SessionService:
                 last_agent_name=parent_record.last_agent_name,
                 workspace_path=parent_record.workspace_path,
                 workspace_name=parent_record.workspace_name,
-                session_type=parent_record.session_type,
             )
 
             record.model_provider_id = parent_record.model_provider_id
@@ -529,7 +525,6 @@ class SessionService:
             permission_profile=record.permission_profile,
             workspace_path=record.workspace_path,
             workspace_name=record.workspace_name,
-            session_type=record.session_type,
             parent_session_id=record.parent_session_id,
             fork_message_index=record.fork_message_index,
         )

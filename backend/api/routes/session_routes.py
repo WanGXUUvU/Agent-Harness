@@ -154,7 +154,6 @@ def read_session_api(
         thinking_effort=record.thinking_effort or "medium",
         workspace_path=record.workspace_path,
         workspace_name=record.workspace_name,
-        session_type=record.session_type,
         workspace_exists=workspace_exists,
     )
 

@@ -54,7 +54,7 @@ class TestAgentLoader(unittest.TestCase):
 
             self.assertEqual(definition.id, "default")
             self.assertEqual(definition.name, "Default Agent")
-            self.assertEqual(definition.system_prompt, "你是一个助手。")
+            self.assertEqual(definition.system_prompt, "")
             self.assertEqual(
                 definition.description, "通用助理，不限制工具，适合各类任务"
             )

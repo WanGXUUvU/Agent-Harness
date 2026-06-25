@@ -321,7 +321,6 @@ class TestAsyncAgent(unittest.IsolatedAsyncioTestCase):
             approval_policy=ApprovalPolicy.NEVER,
             effective_agent_name="Default Agent",
             workspace_path="",
-            session_type="coding",
         )
         lifecycle = RunLifecycle(
             RunLifecycleParams(
@@ -357,7 +356,6 @@ class TestAsyncAgent(unittest.IsolatedAsyncioTestCase):
             approval_policy=ApprovalPolicy.NEVER,
             effective_agent_name="Default Agent",
             workspace_path="",
-            session_type="coding",
         )
         lifecycle = RunLifecycle(
             RunLifecycleParams(
