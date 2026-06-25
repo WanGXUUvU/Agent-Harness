@@ -135,7 +135,17 @@ export function useApprovalFlow(options: ApprovalFlowOptions) {
           }
         } else if (frame.type === 'run_event') {
           if (!['assistant_text', 'final_answer', 'thinking'].includes(frame.data.type)) {
-            state.streamingTimeline = [...state.streamingTimeline, { kind: 'event', event: frame.data }];
+            const tl = [...state.streamingTimeline];
+            const evt = frame.data;
+            const existingIdx = tl.findIndex(
+              item => item.kind === 'event' && item.event.index === evt.index
+            );
+            if (existingIdx !== -1) {
+              tl[existingIdx] = { kind: 'event', event: evt };
+              state.streamingTimeline = tl;
+            } else {
+              state.streamingTimeline = [...tl, { kind: 'event', event: evt }];
+            }
           }
           if (frame.data.type === 'approval_required' && frame.data.content) {
             const nextApprovalId = frame.data.content;

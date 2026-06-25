@@ -249,8 +249,9 @@ const streamingTextSize = computed(() => {
 });
 
 const displayTokens = computed(() => {
-  const real = props.streamingLatestUsage?.usage?.output_tokens
-    ?? props.streamingLatestUsage?.usage?.total_tokens
+  const real = props.streamingLatestUsage?.usage?.total_tokens
+    ?? props.streamingLatestUsage?.usage?.input_tokens
+    ?? props.streamingLatestUsage?.usage?.output_tokens
     ?? null;
   if (typeof real === 'number') {
     return { value: real, estimated: false };
@@ -476,9 +477,8 @@ const scrollToBottom = () => {
           </div>
         </div>
         <div class="message-content">
-          <div class="message-meta mono-label text-danger">AGENT ERROR</div>
+          <div class="message-meta mono-label text-danger">RUN INTERRUPTED</div>
           <div class="error-retry-card">
-            <div class="error-card-glow"></div>
             <div class="error-card-body">
               <div class="error-card-header">
                 <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" class="warning-icon">
@@ -486,16 +486,15 @@ const scrollToBottom = () => {
                   <line x1="12" y1="8" x2="12" y2="12"></line>
                   <line x1="12" y1="16" x2="12.01" y2="16"></line>
                 </svg>
-                <span class="error-title">Execution Disrupted</span>
+                <span class="error-title">Run interrupted</span>
               </div>
               <p class="error-text">{{ error }}</p>
               <div class="error-actions">
                 <button class="retry-action-btn" @click="emit('retry')">
-                  <span class="btn-glow-layer"></span>
                   <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none" class="retry-icon">
                     <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
                   </svg>
-                  <span>Retry Connection</span>
+                  <span>Retry</span>
                 </button>
               </div>
             </div>
@@ -840,47 +839,27 @@ const scrollToBottom = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 69, 58, 0.1);
-  border: 1px solid rgba(255, 69, 58, 0.25);
+  background: color-mix(in srgb, var(--warning-amber, #f59e0b) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning-amber, #f59e0b) 22%, var(--border-dim));
   border-radius: 50%;
-  box-shadow: 0 0 8px rgba(255, 69, 58, 0.15);
+  box-shadow: none;
 }
 
 .text-danger {
-  color: var(--danger, #ff453a) !important;
+  color: var(--text-muted) !important;
 }
 
 .error-retry-card {
-  position: relative;
   margin-top: 8px;
-  max-width: 500px;
-  border-radius: 12px;
-  background: rgba(var(--bg-panel-rgb, 15, 10, 10), 0.55);
-  border: 1px solid rgba(255, 69, 58, 0.25);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 16px rgba(255, 69, 58, 0.05);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.error-retry-card:hover {
-  border-color: rgba(255, 69, 58, 0.4);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), 0 0 20px rgba(255, 69, 58, 0.1);
-}
-
-.error-card-glow {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: radial-gradient(circle at 10% 10%, rgba(255, 69, 58, 0.08), transparent 60%);
-  pointer-events: none;
+  max-width: 520px;
+  border-radius: 8px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-dim);
+  box-shadow: none;
 }
 
 .error-card-body {
-  padding: 16px;
+  padding: 14px 16px;
 }
 
 .error-card-header {
@@ -888,7 +867,7 @@ const scrollToBottom = () => {
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  color: var(--danger, #ff453a);
+  color: var(--text-secondary);
 }
 
 .warning-icon {
@@ -897,53 +876,43 @@ const scrollToBottom = () => {
 
 .error-title {
   font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 650;
+  letter-spacing: 0;
 }
 
 .error-text {
   font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  margin: 0 0 14px 0;
+  line-height: 1.55;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
   font-family: var(--font-mono, monospace);
   word-break: break-all;
 }
 
 .retry-action-btn {
-  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  border: none;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #ff453a, #ff9f0a);
-  color: #ffffff;
+  gap: 6px;
+  border: 1px solid var(--border-dim);
+  border-radius: 7px;
+  background: var(--bg-panel);
+  color: var(--text-primary);
   font-family: var(--font-mono, monospace);
   font-size: 11px;
-  font-weight: 600;
-  padding: 8px 16px;
+  font-weight: 700;
+  padding: 6px 11px;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(255, 69, 58, 0.2);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  overflow: hidden;
+  transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
 }
 
 .retry-action-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(255, 69, 58, 0.3);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg-panel));
 }
 
 .retry-action-btn:active {
   transform: translateY(0);
-}
-
-.retry-icon {
-  transition: transform 0.4s ease;
-}
-
-.retry-action-btn:hover .retry-icon {
-  transform: rotate(180deg);
 }
 
 .btn-glow-layer {

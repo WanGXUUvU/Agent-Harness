@@ -28,6 +28,9 @@ const emit = defineEmits<{
 
 const mergeThreshold = 2; // >=2次同名调用折叠
 const nonCollapsibleToolNames = new Set([
+  'read_file',
+  'view_file',
+  'list_dir',
   'write_file',
   'delete_file',
   'replace_in_file',
@@ -196,17 +199,68 @@ const findRun = computed((): TraceRunSummary | undefined => {
   return undefined;
 });
 
-const getToolNamesList = (chunk: TimelineChunk): string => {
-  if (chunk.type !== 'tools') return '';
-  const names = new Set<string>();
-  chunk.items.forEach((item: MergedTimelineItem) => {
-    if (item.kind === 'event') {
-      if (item.event.tool_name) names.add(item.event.tool_name);
-    } else if (item.kind === 'event_group') {
-      names.add(item.tool_name);
-    }
+const getEventsFromToolChunk = (chunk: TimelineChunk): any[] => {
+  if (chunk.type !== 'tools') return [];
+  return chunk.items.flatMap((item: MergedTimelineItem) => {
+    if (item.kind === 'event') return [item.event];
+    return item.raw_events;
   });
-  return Array.from(names).join(', ') || '工具组件';
+};
+
+const parseToolArgs = (content?: string | null): Record<string, any> => {
+  if (!content) return {};
+  try {
+    const parsed = JSON.parse(content);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const toolPathFromEvent = (event: any): string => {
+  const args = parseToolArgs(event.content);
+  const path = args.TargetFile ?? args.path ?? args.file_path ?? args.DirectoryPath ?? args.AbsolutePath ?? '';
+  return typeof path === 'string' ? path : '';
+};
+
+const compactPath = (path: string, max = 38): string => {
+  if (!path) return '';
+  if (path.length <= max) return path;
+  const parts = path.split('/');
+  const tail = parts.slice(-2).join('/');
+  return tail.length < max ? `…/${tail}` : `…${path.slice(-(max - 1))}`;
+};
+
+const toolChunkSummary = (chunk: TimelineChunk): string => {
+  const events = getEventsFromToolChunk(chunk);
+  const calls = events.filter(event => event.type === 'assistant_tool_call');
+  const results = events.filter(event => event.type === 'tool_error' || event.type === 'tool_result');
+  const failed = results.filter(event => event.type === 'tool_error' || event.tool_result?.ok === false).length;
+  const dirs = calls.filter(event => event.tool_name === 'list_dir').length;
+  const files = calls.filter(event => event.tool_name === 'read_file' || event.tool_name === 'view_file').length;
+  const writes = calls.filter(event => String(event.tool_name ?? '').includes('write')).length;
+  const searches = calls.filter(event => String(event.tool_name ?? '').includes('search')).length;
+
+  const parts: string[] = [];
+  if (files || dirs) {
+    const readParts = [
+      files ? `${files} file${files === 1 ? '' : 's'}` : '',
+      dirs ? `${dirs} dir${dirs === 1 ? '' : 's'}` : '',
+    ].filter(Boolean);
+    parts.push(`read ${readParts.join(', ')}`);
+  }
+  if (writes) parts.push(`${writes} write${writes === 1 ? '' : 's'}`);
+  if (searches) parts.push(`${searches} search${searches === 1 ? '' : 'es'}`);
+  if (!parts.length) parts.push(`${calls.length} tool call${calls.length === 1 ? '' : 's'}`);
+  if (failed) parts.push(`${failed} failed`);
+
+  const samplePaths = calls
+    .map(toolPathFromEvent)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map(path => `"${compactPath(path)}"`);
+
+  return samplePaths.length ? `${parts.join(' · ')} · ${samplePaths.join(', ')}` : parts.join(' · ');
 };
 
 const hasError = (chunk: TimelineChunk): boolean => {
@@ -345,6 +399,9 @@ const isChunkCollapsed = (chunk: TimelineChunk) => {
         return true;
       }
     }
+    if (chunk.type === 'tools') {
+      return true;
+    }
     return false;
   }
   
@@ -353,6 +410,7 @@ const isChunkCollapsed = (chunk: TimelineChunk) => {
 };
 
 const toolCnNameMap: Record<string, string> = {
+  read_file: 'READ',
   write_file: 'WRITE',
   replace_file_content: 'WRITE',
   multi_replace_file_content: 'WRITE',
@@ -366,6 +424,7 @@ const toolCnNameMap: Record<string, string> = {
 };
 
 const toolRunningNameMap: Record<string, string> = {
+  read_file: 'READING',
   write_file: 'WRITING',
   replace_file_content: 'WRITING',
   multi_replace_file_content: 'WRITING',
@@ -392,7 +451,6 @@ const getFirstToolName = (chunk: TimelineChunk): string | null => {
 const timelineNodeLabel = (chunk: TimelineChunk, index: number): string => {
   if (chunk.type === 'thinking') return props.msgIndex === 9999 && isThinkingActive(chunk) ? 'Thinking' : 'Thought';
   if (chunk.type === 'tools') {
-    if (hasError(chunk)) return 'Tool Error';
     const rawName = getFirstToolName(chunk);
     if (rawName) {
       const active = isTimelineNodeActive(chunk, index);
@@ -416,7 +474,6 @@ const isTimelineNodeActive = (chunk: TimelineChunk, index: number): boolean => {
 
 const timelineNodeClass = (chunk: TimelineChunk, index: number) => ({
   'is-active': isTimelineNodeActive(chunk, index),
-  'is-error': chunk.type === 'tools' && hasError(chunk),
   'is-tool': chunk.type === 'tools',
   'is-thinking': chunk.type === 'thinking',
   'is-text': chunk.type === 'text',
@@ -496,7 +553,17 @@ const handleCodeBlockClick = (e: MouseEvent) => {
         v-else-if="chunk.type === 'tools'" 
         class="history-trace-container-flat"
       >
-        <div class="tool-tree-inner">
+        <button
+          class="tool-chunk-summary"
+          type="button"
+          @click="toggleChunk(chunk.id)"
+        >
+          <span class="tool-chunk-summary-text">{{ toolChunkSummary(chunk) }}</span>
+          <svg class="tool-chunk-chevron" :class="{ open: !isChunkCollapsed(chunk) }" viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.5" fill="none">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <div v-if="!isChunkCollapsed(chunk)" class="tool-tree-inner">
           <ToolTree
             :items="chunk.items"
             :isAwaitingApproval="isAwaitingApproval"
@@ -511,7 +578,6 @@ const handleCodeBlockClick = (e: MouseEvent) => {
       </div>
       </div>
     </div>
-    <div v-if="message.stopped" class="stopped-label">Stopped</div>
   </div>
 </template>
 
@@ -602,17 +668,6 @@ const handleCodeBlockClick = (e: MouseEvent) => {
   will-change: opacity;
 }
 
-.agent-timeline-node.is-error .agent-timeline-marker {
-  opacity: 1;
-}
-
-.agent-timeline-node.is-error .agent-timeline-marker::before {
-  content: '✗';
-  font-size: 9px;
-  color: var(--danger, #ff453a);
-}
-
-
 .agent-timeline-body {
   min-width: 0;
   padding: 0 0 10px;
@@ -670,6 +725,51 @@ const handleCodeBlockClick = (e: MouseEvent) => {
 .history-trace-container-flat {
   margin: 2px 0 0;
   width: 100%;
+}
+
+.tool-chunk-summary {
+  width: 100%;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 1px 0 4px;
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  opacity: 0.62;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tool-chunk-summary:hover {
+  opacity: 0.86;
+  color: var(--text-secondary);
+}
+
+.tool-chunk-summary-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tool-chunk-chevron {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.tool-chunk-chevron.open {
+  transform: rotate(180deg);
+}
+
+.tool-tree-inner {
+  margin-top: 4px;
 }
 
 .history-trace-container {
@@ -758,9 +858,4 @@ const handleCodeBlockClick = (e: MouseEvent) => {
   position: relative;
 }
 
-.stopped-label {
-  font-size: 10.5px; font-weight: 500; color: var(--text-muted);
-  font-family: var(--font-mono, monospace);
-  margin-top: 8px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.45;
-}
 </style>

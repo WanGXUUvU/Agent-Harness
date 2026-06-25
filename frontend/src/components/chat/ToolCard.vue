@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch, onBeforeUnmount } from 'vue';
+import { computed, ref } from 'vue';
 import type { ApprovalInfo } from '../../types';
-import { formatContent } from '../../utils/formatContent';
 
 interface GroupedToolExecution {
   id: string;
@@ -36,60 +35,13 @@ const toggleExpand = () => {
   isExpanded.value = !isExpanded.value;
 };
 
-// Auto expand when the tool status dynamically completes (running/awaiting -> success)
-watch(() => props.exec.status, (newStatus, oldStatus) => {
-  if (newStatus === 'success' && oldStatus && (oldStatus === 'running' || oldStatus === 'awaiting_approval')) {
-    isExpanded.value = true;
-  }
-});
-
-const formatJson = (val: any): string => {
-  if (typeof val === 'string') {
-    try {
-      return JSON.stringify(JSON.parse(val), null, 2);
-    } catch {
-      return val;
-    }
-  }
-  if (val && typeof val === 'object') {
-    return JSON.stringify(val, null, 2);
-  }
-  return String(val);
-};
-
-const escapeHtml = (value: string): string => value
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
-
-const highlightJson = (json: string): string => {
-  if (!json) return '';
-  // Highlight keys, values, numbers, booleans
-  return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, (match) => {
-    let cls = 'json-number';
-    if (/^"/.test(match)) {
-      if (/:$/.test(match)) {
-        cls = 'json-key';
-      } else {
-        cls = 'json-string';
-      }
-    } else if (/true|false/.test(match)) {
-      cls = 'json-boolean';
-    } else if (/null/.test(match)) {
-      cls = 'json-null';
-    }
-    return `<span class="${cls}">${escapeHtml(match)}</span>`;
-  });
-};
-
 // Check if this specific tool card is currently waiting for approval
 const isThisWaitingApproval = computed(() => {
   return props.exec.status === 'awaiting_approval' && !!props.exec.approvalInfo;
 });
 
 const maxCollapsedLines = 9;
+const readResultToolNames = new Set(['read_file', 'view_file', 'list_dir']);
 
 const tryExtractFromPartialJson = (jsonStr: string, keys: string[]): string | null => {
   const clean = jsonStr.trim();
@@ -130,26 +82,30 @@ const tryExtractFromPartialJson = (jsonStr: string, keys: string[]): string | nu
 
 const fileArgsInfo = computed(() => {
   const args = props.exec.args;
-  if (!args) return null;
 
   let pathVal = '';
-  let contentVal = '';
+  let contentVal: unknown = '';
+  let hasContentField = false;
 
-  const preferredPathKeys = ['TargetFile', 'path', 'TargetFile'];
+  const preferredPathKeys = ['TargetFile', 'path'];
   const preferredContentKeys = ['CodeContent', 'content', 'ReplacementContent', 'replacementContent'];
 
-  if (typeof args === 'object') {
+  if (args && typeof args === 'object') {
     const pathKey = preferredPathKeys.find(k => k in args);
     pathVal = pathKey ? args[pathKey] : '';
 
     const contentKey = preferredContentKeys.find(k => k in args);
+    hasContentField = Boolean(contentKey);
     contentVal = contentKey ? args[contentKey] : '';
   } else if (typeof args === 'string') {
     pathVal = tryExtractFromPartialJson(args, preferredPathKeys) || '';
-    contentVal = tryExtractFromPartialJson(args, preferredContentKeys) || '';
+    hasContentField = preferredContentKeys.some(key => new RegExp(`"${key}"\\s*:`).test(args));
+    contentVal = hasContentField ? tryExtractFromPartialJson(args, preferredContentKeys) ?? '' : '';
   }
 
-  if (!contentVal && !pathVal) return null;
+  // Do not read and preview the content of read tools (like read_file, view_file, list_dir) to keep the chat clean
+
+  if (!hasContentField) return null;
 
   // Extract basename for tab title
   let filename = 'file';
@@ -159,7 +115,12 @@ const fileArgsInfo = computed(() => {
   }
 
   const isMd = filename.toLowerCase().endsWith('.md');
-  const contentStr = typeof contentVal === 'string' ? contentVal : JSON.stringify(contentVal, null, 2);
+  const contentStr =
+    typeof contentVal === 'string'
+      ? contentVal
+      : contentVal === null || contentVal === undefined
+        ? ''
+        : JSON.stringify(contentVal, null, 2);
 
   // Split lines
   const lines = contentStr.split('\n');
@@ -184,14 +145,10 @@ const displayedLines = computed(() => {
   return lines.slice(0, Math.min(lines.length, maxCollapsedLines));
 });
 
-const hasHiddenLines = computed(() => {
-  if (!fileArgsInfo.value) return false;
-  return fileArgsInfo.value.totalLines > displayedLines.value.length;
-});
-
-
+const displayedContent = computed(() => displayedLines.value.join('\n'));
 
 const toolCnNameMap: Record<string, string> = {
+  read_file: 'READ',
   write_file: 'WRITE',
   replace_file_content: 'WRITE',
   multi_replace_file_content: 'WRITE',
@@ -212,6 +169,7 @@ const compact = (value: string, max = 92): string => {
 const quote = (value: string): string => `"${compact(value.replace(/"/g, '\\"'), 72)}"`;
 
 const toolRunningNameMap: Record<string, string> = {
+  read_file: 'READING',
   write_file: 'WRITING',
   replace_file_content: 'WRITING',
   multi_replace_file_content: 'WRITING',
@@ -294,6 +252,25 @@ const resultLine = computed(() => {
   if (isThisWaitingApproval.value) return 'Waiting for approval';
   if (props.exec.status === 'running') return 'Running';
   if (props.exec.status === 'error') return summarizeValue(props.exec.error || 'Failed');
+
+  // Override summary for read tools to not show raw file contents or JSON
+  if (readResultToolNames.has(props.exec.tool_name)) {
+    if (props.exec.tool_name === 'list_dir') {
+      return 'List directory successfully';
+    }
+    let contentStr = '';
+    if (typeof props.exec.result === 'string') {
+      contentStr = props.exec.result;
+    } else if (props.exec.result && typeof props.exec.result === 'object') {
+      contentStr = props.exec.result.content || props.exec.result.output || props.exec.result.stdout || '';
+    }
+    if (contentStr) {
+      const lines = contentStr.split('\n').length;
+      return `Read ${lines} line${lines === 1 ? '' : 's'} successfully`;
+    }
+    return 'Read successfully';
+  }
+
   if (props.exec.vfsState === 'staged') return `${summarizeValue(props.exec.result)} · staged`;
   return summarizeValue(props.exec.result);
 });
@@ -312,10 +289,7 @@ const groupSummary = computed(() => {
 });
 
 const hasDetailedContent = computed(() => {
-  const hasArgs = props.exec.args && typeof props.exec.args === 'object'
-    ? Object.keys(props.exec.args).length > 0
-    : !!props.exec.args;
-  return hasArgs || !!props.exec.result || !!props.exec.error || isThisWaitingApproval.value;
+  return (props.exec.status !== 'running' && !!fileArgsInfo.value) || !!props.exec.error || isThisWaitingApproval.value;
 });
 </script>
 
@@ -348,7 +322,7 @@ const hasDetailedContent = computed(() => {
       <span class="tool-status-prefix">
         <span v-if="exec.status === 'running'" class="prefix-running">▸</span>
         <span v-else-if="exec.status === 'success'" class="prefix-success">✓</span>
-        <span v-else-if="exec.status === 'error'" class="prefix-error">✗</span>
+        <span v-else-if="exec.status === 'error'" class="prefix-error">×</span>
         <span v-else-if="exec.status === 'awaiting_approval'" class="prefix-approval">◆</span>
       </span>
 
@@ -362,8 +336,22 @@ const hasDetailedContent = computed(() => {
           </span>
         </div>
         <!-- 结果行：只在完成/错误/待审批时显示 -->
-        <div v-if="exec.status !== 'running'" class="tool-result-line" :class="resultLineClass">
-          <span>{{ resultLine }}</span>
+        <div
+          v-if="exec.status !== 'running'"
+          class="tool-result-line"
+          :class="[
+            resultLineClass,
+            {
+              'is-file-result': fileArgsInfo,
+              'is-file-expanded': fileArgsInfo && (isExpanded || isThisWaitingApproval)
+            }
+          ]"
+        >
+          <pre
+            v-if="fileArgsInfo && (isExpanded || isThisWaitingApproval)"
+            class="tool-result-pre"
+          >{{ displayedContent }}</pre>
+          <span v-else>{{ resultLine }}</span>
         </div>
       </div>
 
@@ -386,56 +374,11 @@ const hasDetailedContent = computed(() => {
     </div>
 
 
-    <!-- 文本/文件类型参数的内行直观预览：running 时不展示增量细节，仅在完成/待审批/错误后显示 -->
-    <div v-if="fileArgsInfo && exec.status !== 'running'" class="tool-exec-inline-preview" @click.stop>
-      <div class="cli-file-preview">
-        <div class="cli-lines-container">
-          <div
-            v-for="(line, idx) in displayedLines"
-            :key="idx"
-            class="cli-line-row"
-          >
-            <span class="cli-line-num">{{ idx + 1 }}</span>
-            <span class="cli-line-content">{{ line }}</span>
-          </div>
-        </div>
-        <div
-          v-if="hasHiddenLines"
-          class="cli-expand-prompt"
-          @click="isExpanded = true"
-        >
-          .. +{{ fileArgsInfo.totalLines - displayedLines.length }} lines (click to expand)
-        </div>
-      </div>
-    </div>
-
-
     <!-- 工具折叠体内容 -->
-    <div class="tool-exec-body" v-if="isExpanded || isThisWaitingApproval">
-      <!-- 参数 -->
-      <div class="tool-exec-section" v-if="!fileArgsInfo && exec.args && Object.keys(exec.args).length > 0">
-        <div class="ide-code-container">
-          <div class="ide-code-header">
-            <span class="ide-tab-title">parameters.json</span>
-          </div>
-          <pre class="json-code"><code v-html="highlightJson(formatJson(exec.args))"></code></pre>
-        </div>
-      </div>
-
+    <div class="tool-exec-body" v-if="(isExpanded || isThisWaitingApproval) && (exec.status === 'error' || isThisWaitingApproval)">
       <!-- 错误状态 -->
       <div class="tool-exec-section is-error" v-if="exec.status === 'error' && exec.error">
-        <div class="section-label">Error Output</div>
         <div class="error-text">{{ exec.error }}</div>
-      </div>
-
-      <!-- 正常返回结果 -->
-      <div class="tool-exec-section" v-if="!fileArgsInfo && exec.status === 'success' && exec.result">
-        <div class="ide-code-container">
-          <div class="ide-code-header">
-            <span class="ide-tab-title">response.log</span>
-          </div>
-          <pre class="json-code"><code v-html="highlightJson(formatJson(exec.result))"></code></pre>
-        </div>
       </div>
 
       <!-- 💡 顶奢级审批交互面板：磨砂拟态、渐变霓虹呼吸边框与对称排版 -->
@@ -518,7 +461,7 @@ const hasDetailedContent = computed(() => {
 }
 .prefix-running  { color: var(--accent-emerald, #34c759); }
 .prefix-success  { color: var(--text-muted); opacity: 0.5; }
-.prefix-error    { color: var(--danger, #ff453a); }
+.prefix-error    { color: var(--text-muted); opacity: 0.55; }
 .prefix-approval { color: var(--warning-amber, #FBBF24); }
 
 body.theme-default .tool-exec-card,
@@ -656,7 +599,8 @@ body.theme-amber .tool-exec-icon-box {
 }
 
 .tool-call-expression.status-error {
-  color: var(--danger, #ff453a);
+  color: var(--text-muted);
+  opacity: 0.78;
 }
 
 .tool-result-line {
@@ -679,10 +623,30 @@ body.theme-amber .tool-exec-icon-box {
   text-overflow: ellipsis;
 }
 
-.tool-result-line.is-error { color: var(--danger, #ff453a); opacity: 1; }
+.tool-result-line.is-error { color: var(--text-muted); opacity: 0.72; }
 .tool-result-line.is-warning { color: var(--warning-amber, #FBBF24); opacity: 1; }
 .tool-result-line.is-success { color: var(--text-muted); opacity: 0.55; }
 .tool-result-line.is-running { display: none; }
+
+.tool-result-line.is-file-expanded {
+  display: block;
+  align-items: initial;
+  line-height: 1.7;
+  opacity: 0.58;
+}
+
+.tool-result-pre {
+  margin: 0;
+  max-height: min(58vh, 640px);
+  overflow: auto;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 .tree-elbow {
   color: var(--text-muted);
@@ -815,88 +779,15 @@ body.theme-amber .tool-exec-body {
   gap: 6px;
 }
 
-.section-label {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  letter-spacing: 0.05em;
-}
-
-/* --- 💻 HIGH-END macOS IDE CODE CONTAINER --- */
-.ide-code-container {
-  display: flex;
-  flex-direction: column;
-  background: color-mix(in srgb, var(--bg-panel) 96%, var(--text-primary)) !important;
-  border: none !important;
-  border-radius: 4px;
-  overflow: hidden;
-  box-shadow: none !important;
-}
-
-.ide-code-header {
-  display: flex;
-  align-items: center;
-  padding: 6px 10px;
-  background: transparent !important;
-  border-bottom: 1px solid var(--border-dim) !important;
-  user-select: none;
-}
-
-.ide-tab-title {
-  font-size: 10px;
-  font-weight: 500;
-  font-family: var(--font-mono, monospace);
-  color: var(--text-secondary) !important;
-  letter-spacing: 0.5px;
-  text-transform: lowercase;
-}
-
-.json-code {
-  margin: 0;
-  padding: 10px 12px;
-  background: transparent !important;
-  font-size: 11px;
-  line-height: 1.6;
-  color: var(--text-primary) !important; /* Adapt dynamically to both modes */
-  font-family: var(--font-mono, monospace);
-  overflow-x: auto;
-  max-height: 320px;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.json-code code {
-  color: inherit !important;
-  background: transparent !important;
-}
-
-/* --- Theme-Aware soft high-fidelity syntax colors --- */
-.json-code :deep(.json-key) {
-  color: var(--accent-blue) !important; /* Pale blue in dark, rich blue in light */
-  font-weight: 500;
-}
-.json-code :deep(.json-string) {
-  color: var(--accent-emerald) !important; /* Soft green in dark, rich emerald in light */
-}
-.json-code :deep(.json-number) {
-  color: #ef4444 !important; /* Professional amber/orange */
-}
-.json-code :deep(.json-boolean) {
-  color: var(--accent-emerald) !important;
-}
-.json-code :deep(.json-null) {
-  color: var(--text-muted) !important;
-}
-
 .error-text {
-  padding: 10px 12px;
-  background: rgba(255, 69, 58, 0.06);
-  border: 1px solid rgba(255, 69, 58, 0.15);
-  border-radius: 6px;
+  padding: 2px 0 4px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   font-size: 11px;
   line-height: 1.6;
-  color: #ff453a;
+  color: var(--text-muted);
+  opacity: 0.72;
   font-family: var(--font-mono, monospace);
   white-space: pre-wrap;
   word-break: break-all;
@@ -1095,74 +986,4 @@ body.theme-amber .tool-exec-body {
   50% { opacity: 1; }
 }
 
-/* ── 终端风格内联文件预览样式 ── */
-.tool-exec-inline-preview {
-  margin: 4px 0 8px 24px;
-  width: calc(100% - 24px);
-  border: 1px solid var(--border-dim);
-  border-radius: 4px;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--bg-panel) 96%, var(--text-primary));
-}
-
-.cli-file-preview {
-  display: flex;
-  flex-direction: column;
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
-.cli-lines-container {
-  max-height: 400px;
-  overflow-y: auto;
-  padding: 6px 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.cli-line-row {
-  display: flex;
-  align-items: flex-start;
-  padding: 1px 0;
-}
-
-.cli-line-row:hover {
-  background: color-mix(in srgb, var(--text-primary) 3%, transparent);
-}
-
-.cli-line-num {
-  width: 32px;
-  text-align: right;
-  padding-right: 10px;
-  color: var(--text-muted);
-  user-select: none;
-  flex-shrink: 0;
-  opacity: 0.65;
-}
-
-.cli-line-content {
-  white-space: pre-wrap;
-  word-break: break-all;
-  flex-grow: 1;
-  color: var(--text-primary);
-}
-
-.cli-expand-prompt {
-  padding: 6px 12px;
-  background: color-mix(in srgb, var(--bg-panel) 93%, var(--text-primary));
-  border-top: 1px dashed var(--border-dim);
-  color: var(--text-muted);
-  cursor: pointer;
-  font-weight: 500;
-  text-align: left;
-  user-select: none;
-  transition: all 0.2s ease;
-}
-
-.cli-expand-prompt:hover {
-  color: var(--text-primary);
-  background: color-mix(in srgb, var(--bg-panel) 90%, var(--text-primary));
-}
 </style>

@@ -111,7 +111,17 @@ export function useRunStreaming(options: RunStreamingOptions) {
           }
         } else if (frame.type === 'run_event') {
           if (!['assistant_text', 'final_answer', 'thinking'].includes(frame.data.type)) {
-            state.streamingTimeline = [...state.streamingTimeline, { kind: 'event', event: frame.data }];
+            const tl = [...state.streamingTimeline];
+            const evt = frame.data;
+            const existingIdx = tl.findIndex(
+              item => item.kind === 'event' && item.event.index === evt.index
+            );
+            if (existingIdx !== -1) {
+              tl[existingIdx] = { kind: 'event', event: evt };
+              state.streamingTimeline = tl;
+            } else {
+              state.streamingTimeline = [...tl, { kind: 'event', event: evt }];
+            }
           }
           if ((state as any).interruptionWaitForTool && (state as any).interruptionPendingMessage) {
             if (!hasOpenToolCalls(state.streamingTimeline)) {
@@ -217,12 +227,28 @@ export function useRunStreaming(options: RunStreamingOptions) {
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        state.errorMsg = 'Run failed: ' + err.message;
+        state.errorMsg = err.message || 'Network error';
         const frozenTimeline = [...state.streamingTimeline];
         const partialReply = frozenTimeline
           .filter(item => item.kind === 'text')
           .map(item => item.content)
           .join('');
+        if (capturedRunId && state.pendingUserInput) {
+          if (frozenTimeline.length > 0) {
+            writeTimelineToStore(capturedRunId, frozenTimeline);
+          }
+          try {
+            await api.finalizeRun(
+              targetSessionId,
+              capturedRunId,
+              state.pendingUserInput,
+              partialReply,
+              state.pendingAgentName,
+            );
+          } catch {
+            // Network errors can also block finalization; keep the local recovery UI usable.
+          }
+        }
         if (partialReply.trim() || frozenTimeline.length > 0) {
           let updated = false;
           const newMsgs = [...state.currentMessages];

@@ -161,12 +161,6 @@ defineExpose({
       </div>
     </header>
 
-    <!-- 错误条 -->
-    <div v-if="error" class="notice-bar error-bar">
-      <span>{{ error }}</span>
-      <button class="notice-close" @click="$emit('errorDismiss')">✕</button>
-    </div>
-
     <!-- 信息条 -->
     <div v-if="infoMsg" class="notice-bar info-bar">
       <span>{{ infoMsg }}</span>

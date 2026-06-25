@@ -359,9 +359,7 @@ export function useWorkspace() {
   }, { immediate: true });
 
   const retryLastRun = () => {
-    if (pendingUserInput.value) {
-      runStreaming.sendMessage(pendingUserInput.value, pendingSkillName.value);
-    }
+    runStreaming.sendMessage('continue', null);
   };
 
   const editAndReRun = async (messageIndex: number, newContent: string) => {

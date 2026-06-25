@@ -975,6 +975,19 @@ struct ToolExchangeContent: View {
         if isApproval { return "└ Waiting for approval" }
         if isRunning { return "└ Running" }
         if isError { return "└ \(ToolCallFormatter.summary(resultText, fallback: "Failed"))" }
+        
+        let isReadTool = ["read_file", "view_file", "list_dir"].contains(toolName ?? "")
+        if isReadTool {
+            if toolName == "list_dir" {
+                return "└ List directory successfully"
+            }
+            if let resultText {
+                let lines = resultText.components(separatedBy: "\n").count
+                return "└ Read \(lines) line\(lines == 1 ? "" : "s") successfully"
+            }
+            return "└ Read successfully"
+        }
+        
         return "└ \(ToolCallFormatter.summary(resultText, fallback: resultFallback))"
     }
 
@@ -986,6 +999,10 @@ struct ToolExchangeContent: View {
     }
 
     private var hasDetails: Bool {
+        let isReadTool = ["read_file", "view_file", "list_dir"].contains(toolName ?? "")
+        if isReadTool && !isError && !isApproval {
+            return false
+        }
         let hasArgs = !(arguments?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
         let hasResult = !(resultText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
         return hasArgs || hasResult
@@ -1426,11 +1443,14 @@ struct RunActivityStrip: View {
 
     private func tokenDisplay(tick: Int) -> (value: Int, estimated: Bool) {
         if let usage = viewModel.streamingLatestUsage?.usage {
-            if let output = usage.outputTokens {
-                return (output, false)
-            }
             if let total = usage.totalTokens {
                 return (total, false)
+            }
+            if let input = usage.inputTokens {
+                return (input, false)
+            }
+            if let output = usage.outputTokens {
+                return (output, false)
             }
         }
         let textSize = viewModel.streamingThinking.count + viewModel.streamingReply.count + viewModel.streamingEvents.count * 80
