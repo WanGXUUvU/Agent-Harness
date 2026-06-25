@@ -79,6 +79,7 @@ class TraceRunSummary(BaseModel):
     event_count: int
     created_at: datetime
     finished_at: datetime
+    is_active: int = 1
     events: list[RunEvent]
 
 

@@ -97,6 +97,7 @@ const visibleMessages = computed(() => {
     } as AgentMessage & { _streaming?: boolean });
   }
 
+  console.log('visibleMessages updated:', msgs);
   return msgs;
 });
 

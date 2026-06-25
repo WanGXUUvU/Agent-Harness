@@ -61,6 +61,7 @@ def read_session_trace_api(
                 event_count=run_record.event_count,
                 created_at=run_record.created_at,
                 finished_at=run_record.finished_at,
+                is_active=int(run_record.is_active) if run_record.is_active is not None else 1,
                 events=events,
             )
         )
