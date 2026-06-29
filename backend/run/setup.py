@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from backend.agent import AgentDefinition, load_agent_definition
-from backend.context.compaction import HistoryCompactor
+from backend.prompt.compaction import HistoryCompactor
 from backend.core.adapters.chat_completions import ChatCompletionsAdapter
 from backend.prompt.builder import build_runtime_system_prompt
 from backend.prompt.collect import collect_prompt_materials
@@ -17,7 +17,7 @@ from backend.infra.db.orm_models import (
     SessionRecord,
 )
 from backend.session.store import SessionStore
-from backend.context.compaction import CompactService
+from backend.prompt.compaction import CompactService
 from backend.prompt.strategies.thinking import build_thinking_payload
 from backend.security.policy.types import PROFILES
 

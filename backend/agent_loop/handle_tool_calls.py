@@ -10,7 +10,7 @@ from backend.core.types import ChatMessage, ToolCall
 from backend.agent_loop.types import RunEvent, ToolBatchResult
 from backend.security.middleware.base import MiddlewarePipeline, ToolCallContext
 from backend.security.policy.types import ApprovalPolicy
-from backend.sandbox.middleware import SandboxMiddleware
+from backend.security.sandbox import SandboxMiddleware
 from backend.tools.registry import ToolRegistry
 from backend.tools.result_types import ToolResult
 

@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from backend.context.compaction import CompactInput, CompactOutput, CompactService
+from backend.prompt.compaction import CompactInput, CompactOutput, CompactService
 from backend.api.routes.dependencies import error_response
 from backend.infra.db.engine import get_db
 

@@ -4,7 +4,7 @@ import inspect
 import json
 from typing import Any, Optional
 
-from backend.sandbox.resolver import SandboxPathResolver
+from backend.security.sandbox import SandboxPathResolver
 from backend.tools.result_types import ToolError, ToolResult
 
 

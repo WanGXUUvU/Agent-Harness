@@ -19,7 +19,7 @@ from backend.core.types import ChatMessage
 from backend.session.store import SessionStore
 from backend.infra.db.orm_models import SessionRunRecord
 from backend.security.middleware.base import MiddlewarePipeline, ToolCallContext
-from backend.sandbox.middleware import SandboxMiddleware
+from backend.security.sandbox import SandboxMiddleware
 from backend.run.lifecycle import (
     process_agent_stream,
     persist_run_event,

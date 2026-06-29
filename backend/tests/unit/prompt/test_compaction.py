@@ -1,6 +1,6 @@
 import unittest
 
-from backend.context.compaction import (
+from backend.prompt.compaction import (
     extract_compact_summary,
     HistoryCompactor,
 )
