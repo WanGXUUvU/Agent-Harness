@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 
 class SkillSummary(BaseModel):
-    """skill 列表使用的轻量元数据。"""
+    """技能列表使用的轻量元数据。"""
 
     name: str
     description: Optional[str] = None

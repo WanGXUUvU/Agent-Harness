@@ -1,4 +1,4 @@
-"""接口层 DTO 模型 (Data Transfer Objects)。
+"""接口层数据传输模型。
 
 面向 HTTP API 的请求/响应模型。本模块只承载"HTTP I/O 形状"：
 - 请求体（Input）：HTTP 入参的反序列化形状
@@ -13,8 +13,8 @@ from datetime import datetime
 from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
-from backend.execution.runtime.types import RunEvent, RunState
-from backend.memory.session.types import SessionSummary
+from backend.agent_loop.types import RunEvent, RunState
+from backend.session.types import SessionSummary
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 工具调用摘要 — Tool Call Summary
@@ -35,7 +35,7 @@ class ToolCallSummary(BaseModel):
 
 
 class RunDetailResponse(BaseModel):
-    """GET /sessions/{id}/runs/{run_id} 的响应体。"""
+    """运行详情接口的响应体。"""
 
     run_id: str
     session_id: str
@@ -53,7 +53,7 @@ class RunDetailResponse(BaseModel):
 
 
 class SessionDetail(SessionSummary):
-    """session 详情，继承摘要信息并补上完整 state。"""
+    """会话详情，继承摘要信息并补上完整状态。"""
 
     state: RunState
     model_id: Optional[str] = None
@@ -69,7 +69,7 @@ class SessionDetail(SessionSummary):
 
 
 class TraceRunSummary(BaseModel):
-    """单次 run 的回放数据。"""
+    """单次运行的回放数据。"""
 
     run_id: str
     session_id: str
@@ -84,7 +84,7 @@ class TraceRunSummary(BaseModel):
 
 
 class TraceResponse(BaseModel):
-    """`/sessions/{session_id}/trace` 的响应体。"""
+    """会话轨迹接口的响应体。"""
 
     session_id: str
     runs: list[TraceRunSummary]

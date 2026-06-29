@@ -1,10 +1,4 @@
-"""工具调用中间件基础设施。
-
-职责：
-- 提供 ToolCallContext 上下文数据载体。
-- 提供 BaseMiddleware 抽象基类。
-- 提供 MiddlewarePipeline 洋葱圈执行管道。
-"""
+"""定义工具调用中间件基类和管道。"""
 
 import logging
 from abc import ABC, abstractmethod
@@ -16,11 +10,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ToolCallContext:
-    """工具调用上下文对象，作为安全中间件与工具之间的数据流转载体。
-
-    这个对象的定位不是“整次 run 的上下文”，而是“单次 tool call 的执行上下文”。
-    它会一路经过 middleware pipeline，最后传到具体工具实现。
-    """
+    """保存单次工具调用的上下文。"""
 
     # 本次调用的工具名，例如 read_file / write_file。
     tool_name: str
@@ -49,10 +39,7 @@ class BaseMiddleware(ABC):
         context: Any,
         next_call: Callable[[], Awaitable[Any]],
     ) -> Any:
-        """中间件的核心拦截逻辑入口。
-
-        在内部可以通过检查 context 决定是否放行（调用 next_call）或阻断执行。
-        """
+        """执行中间件拦截逻辑。"""
         pass
 
 
@@ -67,7 +54,7 @@ class MiddlewarePipeline:
         context: Any,
         terminal_call: Callable[[], Awaitable[Any]],
     ) -> Any:
-        """按照逆序依次组装洋葱圈，并在最里层执行物理工具函数。"""
+        """按洋葱模型执行整条中间件链。"""
         current_call = terminal_call
 
         def make_next_call(

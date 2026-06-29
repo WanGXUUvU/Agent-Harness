@@ -1,19 +1,4 @@
-"""基础设施层 (Infrastructure Layer) - 文件系统文本检索工具
-
-from backend.tools.types import RiskLevel
-职责：
-1. 提供本地磁盘物理文件系统的搜索与正则匹配功能。
-2. 对指定目录下的内容进行文本检索，返回匹配的位置及片段。
-
-不负责：
-1. 沙箱安全边界防范与路径真实性检测。
-
-数据流向：
-- 输入：绝对目录路径、搜索关键字和匹配参数。
-- 输出：匹配结果文件与片段列表。
-- 上游来源：经安全中间件校验后的 Tool 调用。
-- 下游流向：操作系统文件系统。
-"""
+"""定义搜索文本工具并执行文件检索。"""
 
 from backend.tools.types import ToolDefinition
 from backend.tools.types import RiskLevel
@@ -30,9 +15,7 @@ def _is_within_directory(root: Path, candidate: Path) -> bool:
 
 
 def search_text(query: str, path: str = ".", __context__=None) -> ToolResult:
-    """这是"全文检索"的具体执行函数。
-    （搜索结果同时覆盖物理磁盘文件和 VFS 暂存区中的新内容，跳过暂存删除的文件。）
-    """
+    """搜索目录下文件内容，包含 VFS 暂存结果。"""
     target = Path(path)
 
     if not target.exists():
@@ -118,11 +101,7 @@ SEARCH_TEXT_SCHEMA = {  # 给模型看的工具说明
 
 
 def build_search_text_definition() -> ToolDefinition:
-    """把上面的“全文检索”工具打包加工，返回一个可供 AI 直接调用和注册的工具定义对象。
-
-    会给出来的结果：
-    - ToolDefinition: 打包好、带安全等级的工具定义对象。
-    """
+    """构建文本搜索工具定义。"""
     return ToolDefinition(
         name="search_text",
         schema=SEARCH_TEXT_SCHEMA,

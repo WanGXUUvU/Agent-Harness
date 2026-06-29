@@ -5,9 +5,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from backend.agent.types import AgentDefinition
-from backend.execution.runtime.types import RunState
-from backend.memory.session.store import SessionStore
-from backend.agent.definition import SqliteAgentDefinitionStore
+from backend.agent_loop.types import RunState
+from backend.agent_definition.store import SqliteAgentDefinitionStore
 from backend.api.app import app
 from backend.skills.types import SkillSummary
 from backend.infra.db.engine import get_db
@@ -16,6 +15,7 @@ from backend.infra.db.orm_models import (
     SessionRunEventRecord,
     SessionRunRecord,
 )
+from backend.session.store import SessionStore
 from backend.tests.helpers.db import (
     build_test_client,
     make_sqlite_test_db,
@@ -34,15 +34,15 @@ class TestAgentApi(unittest.TestCase):
         self.client = build_test_client(app, get_db, self.session_local)
         reset_skill_loader_cache()
 
-        # Mock RunSetupBuilder._build_model_adapter 绕过物理数据库配置校验，直接返回一个 mock 好的 ChatCompletionsAdapter
-        from backend.execution.run_setup_builder import RunSetupBuilder
+        # Mock run_setup.build_model_adapter 绕过物理数据库配置校验，直接返回一个 mock 好的 ChatCompletionsAdapter
+        from backend.run import setup as run_setup
         from backend.core.adapters.chat_completions import (
             ChatCompletionsAdapter,
         )
 
         self.create_adapter_patcher = patch.object(
-            RunSetupBuilder,
-            "_build_model_adapter",
+            run_setup,
+            "build_model_adapter",
             return_value=ChatCompletionsAdapter(
                 api_key="mock-api-key",
                 base_url="mock-base-url",
@@ -140,7 +140,7 @@ class TestAgentApi(unittest.TestCase):
 
         with (
             patch(
-                "backend.context.skill_context.list_skills",
+                "backend.prompt.collect.default_list_skills",
                 return_value=[
                     SkillSummary(
                         name="openai-docs",
@@ -151,7 +151,7 @@ class TestAgentApi(unittest.TestCase):
                 ],
             ),
             patch(
-                "backend.context.skill_context.load_skill_content",
+                "backend.prompt.collect.default_load_skill_content",
                 return_value="FULL SKILL BODY",
             ),
         ):
@@ -378,9 +378,7 @@ class TestAgentApi(unittest.TestCase):
         finally:
             db.close()
 
-    @patch(
-        "backend.agent.definition.service.AgentDefinitionService.load_definition"
-    )
+    @patch("backend.run.setup.load_agent_definition")
     @patch(
         "backend.core.adapters.chat_completions.ChatCompletionsAdapter.generate"
     )
@@ -406,16 +404,16 @@ class TestAgentApi(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(mock_load_definition.call_args.args[0], "reviewer")
+        self.assertEqual(mock_load_definition.call_args.args[1], "reviewer")
         self.assertEqual(response.json()["reply"], "review reply")
         self.assertEqual(response.json()["state"]["messages"][0]["role"], "user")
         self.assertEqual(response.json()["state"]["messages"][1]["role"], "assistant")
 
     @patch(
-        "backend.context.skill_context.load_skill_content",
+        "backend.prompt.collect.default_load_skill_content",
         return_value="---\nname: openai-docs\ndescription: 查文档\n---\nFULL SKILL BODY",
     )
-    @patch("backend.context.skill_context.list_skills")
+    @patch("backend.prompt.collect.default_list_skills")
     @patch(
         "backend.core.adapters.chat_completions.ChatCompletionsAdapter.generate"
     )
@@ -474,8 +472,8 @@ class TestAgentApi(unittest.TestCase):
         finally:
             db.close()
 
-    @patch("backend.context.skill_context.load_skill_content")
-    @patch("backend.context.skill_context.list_skills")
+    @patch("backend.prompt.collect.default_load_skill_content")
+    @patch("backend.prompt.collect.default_list_skills")
     @patch(
         "backend.core.adapters.chat_completions.ChatCompletionsAdapter.generate"
     )
@@ -533,8 +531,8 @@ class TestAgentApi(unittest.TestCase):
         finally:
             db.close()
 
-    @patch("backend.context.skill_context.load_skill_content")
-    @patch("backend.context.skill_context.list_skills")
+    @patch("backend.prompt.collect.default_load_skill_content")
+    @patch("backend.prompt.collect.default_list_skills")
     def test_run_endpoint_rejects_disabled_skill_before_loading_content(
         self,
         mock_list_skills,
@@ -565,7 +563,10 @@ class TestAgentApi(unittest.TestCase):
         )
         mock_load_skill_content.assert_not_called()
 
-    @patch("backend.context.skill_context.list_skills", return_value=[])
+    @patch(
+        "backend.prompt.collect.default_list_skills",
+        return_value=[],
+    )
     def test_run_endpoint_returns_structured_error_when_skill_not_found(
         self, mock_list_skills
     ):
@@ -797,6 +798,17 @@ class TestAgentApi(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json()["error"]["code"], "session_not_found")
         self.assertEqual(response.json()["error"]["message"], "Session not found")
+
+    def test_delete_agent_endpoint_returns_ok_for_missing_agent(self):
+        response = self.client.delete("/agents/not-exist")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok"})
+
+    def test_delete_provider_endpoint_is_idempotent_for_missing_provider(self):
+        response = self.client.delete("/settings/providers/999")
+
+        self.assertEqual(response.status_code, 204)
 
     @patch("backend.skills.loader.get_skills_roots")
     def test_list_skills_endpoint_returns_summaries(

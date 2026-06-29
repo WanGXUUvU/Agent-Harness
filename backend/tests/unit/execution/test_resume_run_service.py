@@ -6,12 +6,12 @@ from unittest.mock import MagicMock, patch
 
 from backend.agent.types import AgentDefinition
 from backend.core.types import ChatMessage
-from backend.execution.persistence.types import RunFinalStatus
-from backend.execution.resume.service import ResumeRunService
-from backend.execution.runtime.types import RunState
+from backend.run.types import RunFinalStatus
+from backend.run.execute_run_resume import execute_run_resume
+from backend.agent_loop.types import RunState
+from backend.approval.store import SqliteApprovalStore
 from backend.infra.db.orm_models import SessionRunRecord
-from backend.memory.session.store import SessionStore
-from backend.security.approval.store import SqliteApprovalStore
+from backend.session.store import SessionStore
 from backend.tests.helpers.db import make_sqlite_test_db
 
 
@@ -42,7 +42,7 @@ def _seed_run(db, session_id: str, run_id: str) -> None:
     )
 
 
-class TestResumeRunService(unittest.IsolatedAsyncioTestCase):
+class TestResumeRun(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.workspace = Path(self.temp_dir.name) / "workspace"
@@ -77,12 +77,11 @@ class TestResumeRunService(unittest.IsolatedAsyncioTestCase):
             )
             db.commit()
 
-            service = ResumeRunService(db)
-            service.recorder.finalize_run = MagicMock()
+            recorder = MagicMock()
 
             with (
                 patch(
-                    "backend.execution.resume.service.AgentDefinitionService.load_definition",
+                    "backend.run.execute_run_resume.load_agent_definition",
                     return_value=AgentDefinition(
                         id="default",
                         name="Default",
@@ -92,18 +91,28 @@ class TestResumeRunService(unittest.IsolatedAsyncioTestCase):
                     ),
                 ) as load_definition,
                 patch(
-                    "backend.execution.resume.service.RunSetupBuilder.build_model_adapter",
-                    return_value=object(),
+                    "backend.run.execute_run_resume.build_model_adapter",
+                    side_effect=AssertionError(
+                        "paused resume path should not build model adapter"
+                    ),
                 ),
             ):
                 frames = []
-                async for frame in service.resume_run(approval.id, rejected=True):
+                async for frame in execute_run_resume(
+                    db=db,
+                    approval_id=approval.id,
+                    rejected=True,
+                    recorder=recorder,
+                    approval_store=approval_store,
+                    session_store=SessionStore(db),
+                ):
                     frames.append(_parse_sse(frame))
 
-            load_definition.assert_called_once_with("default")
+            load_definition.assert_called_once()
+            self.assertEqual(load_definition.call_args.kwargs["agent_id"], "default")
             self.assertEqual(frames[-1]["type"], "paused")
-            self.assertEqual(service.recorder.finalize_run.call_count, 1)
-            finalization = service.recorder.finalize_run.call_args.args[0]
+            self.assertEqual(recorder.finalize_run.call_count, 1)
+            finalization = recorder.finalize_run.call_args.kwargs["finalization"]
             self.assertEqual(finalization.status, RunFinalStatus.PAUSED)
             self.assertTrue(finalization.is_resume)
             self.assertEqual(finalization.run_id, run_id)
@@ -134,15 +143,21 @@ class TestResumeRunService(unittest.IsolatedAsyncioTestCase):
             )
             db.commit()
 
-            async def fake_async_stream_run(self, *args, **kwargs):
+            async def fake_stream(self, *args, **kwargs):
                 yield "done"
 
-            service = ResumeRunService(db)
-            service.recorder.finalize_run = MagicMock()
+            class FakeRunner:
+                def __init__(self):
+                    self.state = RunState()
+                    self.last_usage = None
+
+                stream = fake_stream
+
+            recorder = MagicMock()
 
             with (
                 patch(
-                    "backend.execution.resume.service.AgentDefinitionService.load_definition",
+                    "backend.run.execute_run_resume.load_agent_definition",
                     return_value=AgentDefinition(
                         id="default",
                         name="Default",
@@ -152,27 +167,35 @@ class TestResumeRunService(unittest.IsolatedAsyncioTestCase):
                     ),
                 ) as load_definition,
                 patch(
-                    "backend.execution.resume.service.RunSetupBuilder.build_model_adapter",
+                    "backend.run.execute_run_resume.build_model_adapter",
                     return_value=object(),
                 ),
                 patch.object(
-                    service.approval_store,
+                    approval_store,
                     "is_batch_fully_resolved",
                     return_value=True,
                 ),
                 patch(
-                    "backend.execution.resume.service.AgentRunner.async_stream_run",
-                    new=fake_async_stream_run,
+                    "backend.run.execute_run_resume.build_agent_loop",
+                    return_value=FakeRunner(),
                 ),
             ):
                 frames = []
-                async for frame in service.resume_run(approval.id, rejected=True):
+                async for frame in execute_run_resume(
+                    db=db,
+                    approval_id=approval.id,
+                    rejected=True,
+                    recorder=recorder,
+                    approval_store=approval_store,
+                    session_store=SessionStore(db),
+                ):
                     frames.append(_parse_sse(frame))
 
-            load_definition.assert_called_once_with("default")
+            load_definition.assert_called_once()
+            self.assertEqual(load_definition.call_args.kwargs["agent_id"], "default")
             self.assertEqual(frames[-1]["type"], "end")
-            self.assertEqual(service.recorder.finalize_run.call_count, 1)
-            finalization = service.recorder.finalize_run.call_args.args[0]
+            self.assertEqual(recorder.finalize_run.call_count, 1)
+            finalization = recorder.finalize_run.call_args.kwargs["finalization"]
             self.assertEqual(finalization.status, RunFinalStatus.COMPLETED)
             self.assertTrue(finalization.is_resume)
             self.assertEqual(finalization.reply, "done")

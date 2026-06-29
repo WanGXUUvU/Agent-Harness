@@ -7,13 +7,15 @@ from pathlib import Path
 from unittest.mock import patch
 
 from backend.core.types import StreamChunk, ToolCall, ToolCallFunction
-from backend.execution.persistence.types import RunInput
-from backend.execution.runtime.types import RunState
-from backend.execution.runtime.vfs import RunVfsRegistry
-from backend.execution.service import RunService
-from backend.execution.run_setup_builder import RunSetupBuilder
+from backend.run.types import RunInput
+from backend.agent_loop.types import RunState
+from backend.run import setup as run_setup
+from backend.run.cancel_run import cancel_run
+from backend.run.execute_run_stream import execute_run_stream
+from backend.run.execute_run_sync import execute_run_sync
+from backend.run.runtime.vfs import RunVfsRegistry
 from backend.infra.db.orm_models import SessionRunRecord, ToolCallRecord
-from backend.memory.session.store import SessionStore
+from backend.session.store import SessionStore
 from backend.tests.helpers.db import make_sqlite_test_db
 from backend.tests.helpers.factories import build_assistant_response
 
@@ -124,15 +126,16 @@ class TestVfsAcceptance(unittest.IsolatedAsyncioTestCase):
             ]
         )
 
-        with patch.object(RunSetupBuilder, "_build_model_adapter", return_value=adapter):
+        with patch.object(run_setup, "build_model_adapter", return_value=adapter):
             db = self.session_local()
             try:
-                output = RunService(db).run(
-                    RunInput(
+                output = execute_run_sync(
+                    db=db,
+                    run_input=RunInput(
                         session_id=session_id,
                         user_input="写一个文件",
                         workspace_path=str(self.workspace),
-                    )
+                    ),
                 )
             finally:
                 db.close()
@@ -161,18 +164,16 @@ class TestVfsAcceptance(unittest.IsolatedAsyncioTestCase):
 
         adapter = FakeAsyncAdapter("cancelled.txt", "staged then discarded")
 
-        with (
-            patch.object(RunSetupBuilder, "_build_model_adapter", return_value=adapter),
-            patch("backend.execution.streaming.sse_bridge.logger.exception"),
-        ):
+        with patch.object(run_setup, "build_model_adapter", return_value=adapter):
             db = self.session_local()
             try:
-                stream = RunService(db).stream(
-                    RunInput(
+                stream = execute_run_stream(
+                    db=db,
+                    run_input=RunInput(
                         session_id=session_id,
                         user_input="流式写文件然后取消",
                         workspace_path=str(self.workspace),
-                    )
+                    ),
                 )
 
                 start_frame = _parse_sse(await stream.__anext__())
@@ -195,7 +196,8 @@ class TestVfsAcceptance(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(saw_delta)
                 self.assertFalse(target.exists())
 
-                RunService(db).cancel_run(
+                cancel_run(
+                    db,
                     session_id=session_id,
                     run_id=run_id,
                     user_input="流式写文件然后取消",

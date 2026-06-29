@@ -1,12 +1,4 @@
-"""核心模型协议原语。
-
-职责：
-- 定义模型通信相关的消息原语、请求/响应、流式事件、适配器协议。
-
-不负责：
-- 不定义运行时状态与事件（见 execution/runtime/types.py）。
-- 不定义工具执行结果（见 tools/result_types.py）。
-"""
+"""定义模型通信相关的核心类型。"""
 
 from typing import Any, AsyncIterator, Literal, Optional, Protocol
 
@@ -33,7 +25,7 @@ class ToolCall(BaseModel):
 
 
 class ChatMessage(BaseModel):
-    """运行时消息对象，既用于上下文，也用于持久化 session state。"""
+    """运行时消息对象，既用于上下文，也用于持久化会话状态。"""
 
     role: Literal["system", "user", "assistant", "tool"]
     content: Optional[str] = None
@@ -110,7 +102,7 @@ class ModelResponse(BaseModel):
 
 
 class StreamChunk(BaseModel):
-    """streaming 统一事件对象"""
+    """流式输出统一事件对象。"""
 
     type: str
     response_id: Optional[str] = None
@@ -128,12 +120,12 @@ class StreamChunk(BaseModel):
 class ModelAdapter(Protocol):
     """大模型适配器的标准协议，约束同步/流式调用签名。"""
 
-    def generate(self, request: ModelRequest) -> ModelResponse:
+    def generate(self, _request: ModelRequest) -> ModelResponse:
         """输入统一请求，输出统一响应"""
         ...
 
     async def async_stream_generate(
-        self, request: ModelRequest
+        self, _request: ModelRequest
     ) -> AsyncIterator[StreamChunk]:
         """用 async for 循环消费——每次迭代都是一个 await 点。"""
         ...

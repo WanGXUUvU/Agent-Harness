@@ -3,8 +3,8 @@
 from typing import List, Optional
 
 from backend.core.types import ChatMessage, ModelResponse
-from backend.execution.persistence.types import RunOutput, RunMetadata
-from backend.execution.runtime.types import RunEvent, RunState
+from backend.run.types import RunOutput, RunMetadata
+from backend.agent_loop.types import RunEvent, RunState
 
 
 def build_assistant_response(content=None, tool_calls=None) -> ModelResponse:

@@ -13,15 +13,19 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock, patch
 
-from backend.execution.runtime.types import RunState
-from backend.tools.registry import build_run_registry
-from backend.execution.service import RunService
+from backend.agent_loop.types import RunState
+from backend.run.child.launcher import (
+    create_child_launcher,
+    create_child_status_checker,
+    create_child_waiter,
+)
+from backend.tools.build_registry import build_run_registry
 from backend.tests.helpers.db import make_sqlite_test_db
 from backend.tests.helpers.factories import build_run_output
 
-_MOCK_PATH = "backend.execution.child_run_launcher.AgentRunner"
+_MOCK_PATH = "backend.run.child.launcher.AgentLoop"
 _BUILDER_MOCK_PATH = (
-    "backend.execution.run_setup_builder.RunSetupBuilder.build_model_adapter"
+    "backend.run.child.launcher.build_model_adapter"
 )
 
 
@@ -36,7 +40,7 @@ class TestSpawnReturnsRunIdImmediately(unittest.TestCase):
         self.mock_create_adapter.return_value = MagicMock()
 
         self.session_local_patcher = patch(
-            "backend.execution.child_run_launcher.SessionLocal"
+            "backend.run.child.launcher.SessionLocal"
         )
         self.mock_session_local = self.session_local_patcher.start()
         self.mock_session_local.return_value = MagicMock()
@@ -47,26 +51,26 @@ class TestSpawnReturnsRunIdImmediately(unittest.TestCase):
         self.executor.shutdown(wait=False)
 
     def test_spawn_returns_child_run_id(self):
-        run_service = RunService(MagicMock())
+        db = MagicMock()
         with (
             patch(
-                "backend.execution.child_run_launcher._executor", self.executor
+                "backend.run.child.launcher._executor", self.executor
             ),
             patch(
-                "backend.execution.child_run_launcher._global_futures",
+                "backend.run.child.launcher._global_futures",
                 self.futures,
             ),
             patch(_MOCK_PATH) as MockAgent,
         ):
             MockAgent.return_value.state = RunState()
             MockAgent.return_value.last_usage = None
-            MockAgent.return_value.execute.return_value = build_run_output("done")
+            MockAgent.return_value.run_sync.return_value = build_run_output("done")
             registry = build_run_registry(
-                child_dispatcher=run_service.child_dispatcher.create_launcher(
+                child_dispatcher=create_child_launcher(
                     "parent-1", "session-id"
                 ),
-                status_checker=run_service.child_dispatcher.create_status_checker(),
-                child_waiter=run_service.child_dispatcher.create_waiter(),
+                status_checker=create_child_status_checker(),
+                child_waiter=create_child_waiter(),
             )
             result = registry.execute_tool_call(
                 "spawn_child_agent", '{"task": "task A"}'
@@ -90,7 +94,7 @@ class TestCheckChildStatus(unittest.TestCase):
         self.mock_create_adapter.return_value = MagicMock()
 
         self.session_local_patcher = patch(
-            "backend.execution.child_run_launcher.SessionLocal"
+            "backend.run.child.launcher.SessionLocal"
         )
         self.mock_session_local = self.session_local_patcher.start()
         self.mock_session_local.return_value = MagicMock()
@@ -101,26 +105,26 @@ class TestCheckChildStatus(unittest.TestCase):
         self.executor.shutdown(wait=False)
 
     def test_status_done_after_completion(self):
-        run_service = RunService(MagicMock())
+        db = MagicMock()
         with (
             patch(
-                "backend.execution.child_run_launcher._executor", self.executor
+                "backend.run.child.launcher._executor", self.executor
             ),
             patch(
-                "backend.execution.child_run_launcher._global_futures",
+                "backend.run.child.launcher._global_futures",
                 self.futures,
             ),
             patch(_MOCK_PATH) as MockAgent,
         ):
             MockAgent.return_value.state = RunState()
             MockAgent.return_value.last_usage = None
-            MockAgent.return_value.execute.return_value = build_run_output("结果X")
+            MockAgent.return_value.run_sync.return_value = build_run_output("结果X")
             registry = build_run_registry(
-                child_dispatcher=run_service.child_dispatcher.create_launcher(
+                child_dispatcher=create_child_launcher(
                     "parent-2", "session-id"
                 ),
-                status_checker=run_service.child_dispatcher.create_status_checker(),
-                child_waiter=run_service.child_dispatcher.create_waiter(),
+                status_checker=create_child_status_checker(),
+                child_waiter=create_child_waiter(),
             )
             spawn_result = registry.execute_tool_call(
                 "spawn_child_agent", '{"task": "task B"}'
@@ -141,23 +145,23 @@ class TestCheckChildStatus(unittest.TestCase):
         self.assertEqual(statuses[child_run_id]["reply"], "结果X")
 
     def test_status_not_found_for_unknown_id(self):
-        run_service = RunService(MagicMock())
+        db = MagicMock()
         with (
             patch(
-                "backend.execution.child_run_launcher._executor", self.executor
+                "backend.run.child.launcher._executor", self.executor
             ),
             patch(
-                "backend.execution.child_run_launcher._global_futures",
+                "backend.run.child.launcher._global_futures",
                 self.futures,
             ),
         ):
 
             registry = build_run_registry(
-                child_dispatcher=run_service.child_dispatcher.create_launcher(
+                child_dispatcher=create_child_launcher(
                     "parent-3", "session-id"
                 ),
-                status_checker=run_service.child_dispatcher.create_status_checker(),
-                child_waiter=run_service.child_dispatcher.create_waiter(),
+                status_checker=create_child_status_checker(),
+                child_waiter=create_child_waiter(),
             )
             result = registry.execute_tool_call(
                 "check_child_status",
@@ -179,7 +183,7 @@ class TestWaitChildAgent(unittest.TestCase):
         self.mock_create_adapter.return_value = MagicMock()
 
         self.session_local_patcher = patch(
-            "backend.execution.child_run_launcher.SessionLocal"
+            "backend.run.child.launcher.SessionLocal"
         )
         self.mock_session_local = self.session_local_patcher.start()
         self.mock_session_local.return_value = MagicMock()
@@ -190,26 +194,26 @@ class TestWaitChildAgent(unittest.TestCase):
         self.executor.shutdown(wait=False)
 
     def test_wait_returns_reply(self):
-        run_service = RunService(MagicMock())
+        db = MagicMock()
         with (
             patch(
-                "backend.execution.child_run_launcher._executor", self.executor
+                "backend.run.child.launcher._executor", self.executor
             ),
             patch(
-                "backend.execution.child_run_launcher._global_futures",
+                "backend.run.child.launcher._global_futures",
                 self.futures,
             ),
             patch(_MOCK_PATH) as MockAgent,
         ):
             MockAgent.return_value.state = RunState()
             MockAgent.return_value.last_usage = None
-            MockAgent.return_value.execute.return_value = build_run_output("最终答案")
+            MockAgent.return_value.run_sync.return_value = build_run_output("最终答案")
             registry = build_run_registry(
-                child_dispatcher=run_service.child_dispatcher.create_launcher(
+                child_dispatcher=create_child_launcher(
                     "parent-4", "session-id"
                 ),
-                status_checker=run_service.child_dispatcher.create_status_checker(),
-                child_waiter=run_service.child_dispatcher.create_waiter(),
+                status_checker=create_child_status_checker(),
+                child_waiter=create_child_waiter(),
             )
             spawn_result = registry.execute_tool_call(
                 "spawn_child_agent", '{"task": "task C"}'
@@ -225,23 +229,23 @@ class TestWaitChildAgent(unittest.TestCase):
         self.assertEqual(wait_result.content, "最终答案")
 
     def test_wait_not_found_returns_error(self):
-        run_service = RunService(MagicMock())
+        db = MagicMock()
         with (
             patch(
-                "backend.execution.child_run_launcher._executor", self.executor
+                "backend.run.child.launcher._executor", self.executor
             ),
             patch(
-                "backend.execution.child_run_launcher._global_futures",
+                "backend.run.child.launcher._global_futures",
                 self.futures,
             ),
         ):
 
             registry = build_run_registry(
-                child_dispatcher=run_service.child_dispatcher.create_launcher(
+                child_dispatcher=create_child_launcher(
                     "parent-5", "session-id"
                 ),
-                status_checker=run_service.child_dispatcher.create_status_checker(),
-                child_waiter=run_service.child_dispatcher.create_waiter(),
+                status_checker=create_child_status_checker(),
+                child_waiter=create_child_waiter(),
             )
             result = registry.execute_tool_call(
                 "wait_child_agent",
@@ -276,32 +280,32 @@ class TestParallelSpawn(unittest.TestCase):
         tasks = ["任务一", "任务二", "任务三"]
         child_run_ids = []
 
-        run_service = RunService(MagicMock())
+        db = MagicMock()
         with (
             patch(
-                "backend.execution.child_run_launcher._executor", self.executor
+                "backend.run.child.launcher._executor", self.executor
             ),
             patch(
-                "backend.execution.child_run_launcher._global_futures",
+                "backend.run.child.launcher._global_futures",
                 self.futures,
             ),
             patch(_MOCK_PATH) as MockAgent,
             patch(
-                "backend.execution.child_run_launcher.SessionLocal",
+                "backend.run.child.launcher.SessionLocal",
                 self.session_local,
             ),
         ):
             MockAgent.return_value.state = RunState()
             MockAgent.return_value.last_usage = None
-            MockAgent.return_value.execute.side_effect = [
+            MockAgent.return_value.run_sync.side_effect = [
                 build_run_output(f"结果{i}") for i in range(len(tasks))
             ]
             registry = build_run_registry(
-                child_dispatcher=run_service.child_dispatcher.create_launcher(
+                child_dispatcher=create_child_launcher(
                     "parent-parallel", "session-id"
                 ),
-                status_checker=run_service.child_dispatcher.create_status_checker(),
-                child_waiter=run_service.child_dispatcher.create_waiter(),
+                status_checker=create_child_status_checker(),
+                child_waiter=create_child_waiter(),
             )
             for task in tasks:
                 r = registry.execute_tool_call(

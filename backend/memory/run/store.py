@@ -1,21 +1,13 @@
-"""Run Trace 存储访问层。
-
-职责：
-- run trace 的写入与查询
-- 工具调用记录的 CRUD
-- 子 Agent 运行记录的管理
-
-从 session/w 拆分而出，单一职责：Run 相关持久化操作。
-"""
+"""读写运行轨迹和工具调用记录。"""
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Optional
 
 from sqlalchemy import func as sqlfunc
 from sqlalchemy.orm import Session
 from backend.core.types import ChatMessage
-from backend.execution.runtime.types import RunEvent
+from backend.agent_loop.types import RunEvent
 from backend.infra.db.orm_models import (
     SessionRecord,
     SessionRunEventRecord,
@@ -25,10 +17,7 @@ from backend.infra.db.orm_models import (
 
 
 class RunTraceStore:
-    """围绕 run trace 相关数据的 SQLite store。
-
-    这个类是"运行轨迹数据仓库"。它专门负责运行记录、步骤事件和工具调用记录的读写。
-    """
+    """读写运行记录、事件和工具调用。"""
 
     def __init__(self, db: Session):
         self.db = db
@@ -43,20 +32,7 @@ class RunTraceStore:
         reply: str,
         events: list[RunEvent],
     ) -> SessionRunRecord:
-        """保存一次完整的运行轨迹（Trace）。
-        把这次运行的基本信息存入主表，然后把运行中发生的所有"事件"按顺序存入事件子表中。
-
-        需要拿到的东西：
-        - session_id (str): 属于哪个会话。
-        - run_id (str): 这一轮运行的唯一 ID。
-        - agent_name (str, 可选): 负责干活的 Agent 名字。
-        - user_input (str): 用户的输入文本。
-        - reply (str): 最终给出的回复文本。
-        - events (list[RunEvent]): 运行过程中发生的所有步骤事件。
-
-        会给出来的结果：
-        - SessionRunRecord: 新建并保存好的运行记录对象。
-        """
+        """保存一次完整运行轨迹。"""
 
         run_record = SessionRunRecord(
             session_id=session_id,
@@ -65,7 +41,7 @@ class RunTraceStore:
             user_input=user_input,
             reply=reply,
             event_count=len(events),
-            finished_at=datetime.utcnow(),
+            finished_at=datetime.now(UTC),
         )
         self.db.add(run_record)
 
@@ -142,7 +118,7 @@ class RunTraceStore:
             user_input=user_input,
             reply=reply,
             event_count=len(events),
-            finished_at=datetime.utcnow(),
+            finished_at=datetime.now(UTC),
         )
         self.db.add(run_record)
 
@@ -355,7 +331,7 @@ class RunTraceStore:
             reply=reply,
             event_count=len(events),
             run_status="completed",
-            finished_at=datetime.utcnow(),
+            finished_at=datetime.now(UTC),
         )
         self.db.add(run_record)
 
@@ -390,7 +366,7 @@ class RunTraceStore:
     def append_run_events_partial(
         self, *, run_id: str, new_events: list[RunEvent]
     ) -> None:
-        """给一次 run 追加事件，但不修改 completed 状态和最终 reply。"""
+        """给一次运行追加事件，但不修改完成状态和最终回复。"""
         run_record = (
             self.db.query(SessionRunRecord)
             .filter(SessionRunRecord.run_id == run_id)

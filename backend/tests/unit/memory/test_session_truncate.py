@@ -10,8 +10,11 @@ from backend.infra.db.orm_models import (
     PendingApproval,
 )
 from backend.core.types import ChatMessage
-from backend.memory.session.service import SessionService
-from backend.memory.session.types import CreateSessionInput
+from backend.session.create_session import create_session
+from backend.session.read_session import read_session
+from backend.session.store import SessionStore
+from backend.session.truncate_session import truncate_session
+from backend.session.types import CreateSessionInput
 
 
 class TestSessionTruncate(unittest.TestCase):
@@ -20,7 +23,7 @@ class TestSessionTruncate(unittest.TestCase):
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine)
         self.db = self.Session()
-        self.service = SessionService(self.db)
+        self.store = SessionStore(self.db)
 
     def tearDown(self):
         self.db.close()
@@ -28,12 +31,10 @@ class TestSessionTruncate(unittest.TestCase):
 
     def test_truncate_session_middle(self):
         # 1. 创建会话并模拟存入多轮对话
-        summary = self.service.create_session(
-            CreateSessionInput(session_name="test_truncate")
-        )
+        summary = create_session(self.db, CreateSessionInput(session_name="test_truncate"))
         session_id = summary.session_id
 
-        record, state = self.service.get_session(session_id)
+        record, state = read_session(self.db, session_id)
         state.messages = [
             ChatMessage(role="system", content="System Prompt"),
             ChatMessage(role="user", content="Hello"),
@@ -47,7 +48,7 @@ class TestSessionTruncate(unittest.TestCase):
                 role="assistant", content="Because he was outstanding in his field!"
             ),
         ]
-        self.service.store.save_state(session_id, state)
+        self.store.save_state(session_id, state)
 
         # 2. 插入对应的 runs, events, tool calls, pending approvals 记录
         run1 = SessionRunRecord(
@@ -104,11 +105,11 @@ class TestSessionTruncate(unittest.TestCase):
         # - messages 被截断为 index[:3] (保留前 3 个：system, Hello, Hi)
         # - user 消息计数 K = 1 (Hello)
         # - 仅保留 K=1 个 run (r1 应该保留，r2 和 r3 应该被删除)
-        res = self.service.truncate_session(session_id, 3)
+        res = truncate_session(self.db, session_id, 3)
         self.assertTrue(res["ok"])
 
         # 4. 验证数据库快照与消息数量
-        _, updated_state = self.service.get_session(session_id)
+        _, updated_state = read_session(self.db, session_id)
         self.assertEqual(len(updated_state.messages), 3)
         self.assertEqual(updated_state.messages[1].content, "Hello")
 
@@ -129,12 +130,10 @@ class TestSessionTruncate(unittest.TestCase):
 
     def test_truncate_session_all(self):
         # 1. 创建会话并模拟存入多轮对话
-        summary = self.service.create_session(
-            CreateSessionInput(session_name="test_truncate")
-        )
+        summary = create_session(self.db, CreateSessionInput(session_name="test_truncate"))
         session_id = summary.session_id
 
-        record, state = self.service.get_session(session_id)
+        record, state = read_session(self.db, session_id)
         state.messages = [
             ChatMessage(role="system", content="System Prompt"),
             ChatMessage(role="user", content="Hello"),
@@ -148,7 +147,7 @@ class TestSessionTruncate(unittest.TestCase):
                 role="assistant", content="Because he was outstanding in his field!"
             ),
         ]
-        self.service.store.save_state(session_id, state)
+        self.store.save_state(session_id, state)
 
         # 2. 插入对应的 runs, events, tool calls, pending approvals 记录
         run1 = SessionRunRecord(
@@ -205,11 +204,11 @@ class TestSessionTruncate(unittest.TestCase):
         # - messages 被截断为 index[:1] (保留前 1 个：system)
         # - user 消息计数 K = 0
         # - 保留 K=0 个 run (r1, r2, r3 都被删除)
-        res = self.service.truncate_session(session_id, 1)
+        res = truncate_session(self.db, session_id, 1)
         self.assertTrue(res["ok"])
 
         # 4. 验证数据库快照与消息数量
-        _, updated_state = self.service.get_session(session_id)
+        _, updated_state = read_session(self.db, session_id)
         self.assertEqual(len(updated_state.messages), 1)
 
         # 5. 验证级联清理完成

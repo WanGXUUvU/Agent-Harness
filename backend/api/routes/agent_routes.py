@@ -1,24 +1,16 @@
-"""智能体模板 HTTP 路由适配层。
-
-职责：
-- 提供内置与自定义智能体（Agent）模板的 HTTP CRUD 接口。
-
-上游：
-- 前端 Agent 管理面板
-
-下游：
-- AgentDefinitionService (agent/definition/service)
-
-不负责：
-- 不做 Agent 物理定义加载或数据库的直接持久化（由服务层负责）。
-- 不做智能体运行时构建及执行编排（由执行层负责）。
-"""
+"""智能体模板 HTTP 路由适配层。"""
 
 from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
 from backend.agent.types import AgentDefinition
-from backend.agent.definition import AgentDefinitionService
-from backend.api.routes.dependencies import get_agent_definition_service
+from backend.agent_definition import (
+    delete_agent_definition,
+    list_agent_definitions,
+    load_agent_definition,
+    save_agent_definition,
+)
+from backend.infra.db.engine import get_db
 
 router = APIRouter()
 
@@ -26,34 +18,43 @@ router = APIRouter()
 @router.get("/agents/{agent_id}")
 def load_agent_definition_api(
     agent_id: str,
-    service: AgentDefinitionService = Depends(get_agent_definition_service),
+    db: Session = Depends(get_db),
 ) -> AgentDefinition:
     """根据智能体 ID 获取其详细配置定义。"""
-    return service.load_definition(agent_id)
+    return load_agent_definition(
+        db=db,
+        agent_id=agent_id,
+    )
 
 
 @router.get("/agents")
 def list_agents_api(
-    service: AgentDefinitionService = Depends(get_agent_definition_service),
+    db: Session = Depends(get_db),
 ):
     """获取系统内所有可用的智能体模板列表。"""
-    return service.list_agents()
+    return list_agent_definitions(db=db)
 
 
 @router.post("/agents", response_model=AgentDefinition)
 def save_agent_api(
     definition: AgentDefinition,
-    service: AgentDefinitionService = Depends(get_agent_definition_service),
+    db: Session = Depends(get_db),
 ):
     """新建或覆盖更新一个智能体模板配置。"""
-    return service.save_agent(definition)
+    return save_agent_definition(
+        db=db,
+        definition=definition,
+    )
 
 
 @router.delete("/agents/{agent_id}")
 def delete_agent_api(
     agent_id: str,
-    service: AgentDefinitionService = Depends(get_agent_definition_service),
+    db: Session = Depends(get_db),
 ):
     """删除指定的智能体模板配置。"""
-    service.delete_agent(agent_id)
+    delete_agent_definition(
+        db=db,
+        agent_id=agent_id,
+    )
     return {"status": "ok"}

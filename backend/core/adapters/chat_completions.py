@@ -5,7 +5,7 @@
 对模型返回的流式 SSE 数据帧进行高内聚的有状态解析。
 转换并输出统一的模型响应结构（ModelResponse / StreamChunk）。
 
-上游依赖：L8 执行层 (AgentRunner)、L6 历史压缩层 (HistoryCompactor)。
+上游依赖：L8 执行层 (AgentLoop)、L6 历史压缩层 (HistoryCompactor)。
 下游依赖：物理大模型外部 API 服务。
 """
 

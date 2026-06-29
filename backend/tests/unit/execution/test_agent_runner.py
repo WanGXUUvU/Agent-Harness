@@ -1,13 +1,15 @@
 import unittest
+from unittest.mock import MagicMock, patch
 
 from backend.agent.types import AgentDefinition
-from backend.execution.persistence.types import RunSetup, RunInput
+from backend.run.types import RunSetup, RunInput, RunFinalStatus
 from backend.core.types import ModelUsage, StreamChunk, ToolCall, ToolCallFunction
-from backend.execution.runtime.agent_runner import AgentRunner
-from backend.execution.runtime.run_lifecycle import (
-    RunLifecycle,
-    RunLifecycleParams,
-    UsageItem,
+from backend.agent_loop.loop import AgentLoop
+from backend.agent_loop.types import RunEvent
+from backend.run.lifecycle import (
+    finalize_run_execution,
+    persist_run_event,
+    process_agent_stream,
 )
 from backend.tests.helpers.factories import build_assistant_response
 from backend.security.policy.types import ApprovalPolicy
@@ -118,7 +120,7 @@ def _tool_call_chunk():
 
 
 def _agent_for_echo(model_adapter):
-    return AgentRunner(
+    return AgentLoop(
         agent_profile=AgentDefinition(
             id="default",
             name="Default Agent",
@@ -138,6 +140,65 @@ class FakeRecorder:
         self.finalizations.append(finalization)
 
 
+async def _iterate_stream_run(
+    *,
+    run_id: str,
+    run_input: RunInput,
+    run_setup: RunSetup,
+    agent: AgentLoop,
+    recorder: FakeRecorder,
+    db,
+):
+    frames = []
+    events = []
+    reply_text = ""
+    active_tool_calls = {}
+
+    raw_stream = agent.stream(
+        run_input=run_input,
+        run_id=run_id,
+        workspace_path=run_setup.workspace_path,
+    )
+
+    async for frame in process_agent_stream(raw_stream=raw_stream):
+        if frame["type"] == "run_event":
+            event = RunEvent(**frame["data"])
+            persist_run_event(
+                db=db,
+                run_id=run_id,
+                event=event,
+                session_id=run_input.session_id,
+                loop_messages=agent.state.messages,
+                active_tool_calls=active_tool_calls,
+            )
+            if not event.transient:
+                events.append(event)
+        elif frame["type"] == "delta":
+            reply_text += frame["data"]["content"]
+
+        frames.append(frame)
+
+    status = (
+        RunFinalStatus.PAUSED
+        if any(event.type == "approval_required" for event in events)
+        else RunFinalStatus.COMPLETED
+    )
+    finalize_run_execution(
+        db=db,
+        run_id=run_id,
+        session_id=run_input.session_id,
+        user_input=run_input.user_input,
+        status=status,
+        events=events,
+        reply=reply_text,
+        effective_agent_name=run_setup.effective_agent_name,
+        loop_state=agent.state,
+        last_usage=getattr(agent, "last_usage", None),
+        recorder=recorder,
+    )
+    return frames
+
+
 class TestAgent(unittest.TestCase):
     def test_run_uses_definition_system_prompt(self):
         custom_definition = AgentDefinition(
@@ -153,8 +214,8 @@ class TestAgent(unittest.TestCase):
             ]
         )
 
-        agent = AgentRunner(agent_profile=custom_definition, model_adapter=fake_adapter)
-        output = agent.execute(RunInput(session_id="session-a", user_input="你好"))
+        agent = AgentLoop(agent_profile=custom_definition, model_adapter=fake_adapter)
+        output = agent.run_sync(RunInput(session_id="session-a", user_input="你好"))
 
         self.assertEqual(output.reply, "mock reply")
         request = fake_adapter.calls[0]
@@ -168,8 +229,8 @@ class TestAgent(unittest.TestCase):
             ]
         )
 
-        agent = AgentRunner(model_adapter=fake_adapter)
-        output = agent.execute(RunInput(session_id="session-a", user_input="你好"))
+        agent = AgentLoop(model_adapter=fake_adapter)
+        output = agent.run_sync(RunInput(session_id="session-a", user_input="你好"))
 
         self.assertEqual(output.reply, "mock reply")
         self.assertEqual(output.state.step, 1)
@@ -196,8 +257,8 @@ class TestAgent(unittest.TestCase):
             ]
         )
 
-        agent = AgentRunner(model_adapter=fake_adapter)
-        output = agent.execute(
+        agent = AgentLoop(model_adapter=fake_adapter)
+        output = agent.run_sync(
             RunInput(session_id="session-a", user_input="帮我测试工具")
         )
 
@@ -225,8 +286,8 @@ class TestAgent(unittest.TestCase):
             ]
         )
 
-        agent = AgentRunner(model_adapter=fake_adapter)
-        output = agent.execute(
+        agent = AgentLoop(model_adapter=fake_adapter)
+        output = agent.run_sync(
             RunInput(session_id="session-a", user_input="帮我测试错误 trace")
         )
 
@@ -252,7 +313,7 @@ class TestAgent(unittest.TestCase):
             ]
         )
 
-        agent = AgentRunner(
+        agent = AgentLoop(
             agent_profile=AgentDefinition(
                 id="default",
                 name="Default Agent",
@@ -264,18 +325,18 @@ class TestAgent(unittest.TestCase):
         )
 
         with self.assertRaises(ValueError) as ctx:
-            agent.execute(RunInput(session_id="session-a", user_input="帮我测试权限"))
+            agent.run_sync(RunInput(session_id="session-a", user_input="帮我测试权限"))
 
         self.assertIn("Tool not allowed: write_file", str(ctx.exception))
         self.assertEqual(len(fake_adapter.calls), 1)
 
 
 class TestAsyncAgent(unittest.IsolatedAsyncioTestCase):
-    async def test_async_stream_run_preserves_tool_call_leadin_in_state(self):
+    async def test_stream_preserves_tool_call_leadin_in_state(self):
         fake_adapter = FakeAsyncStreamAdapter(["好的，让我", "帮你搜一下"])
         agent = _agent_for_echo(fake_adapter)
 
-        async for _ in agent.async_stream_run(
+        async for _ in agent.stream(
             RunInput(session_id="session-a", user_input="帮我测试工具")
         ):
             pass
@@ -289,11 +350,11 @@ class TestAsyncAgent(unittest.IsolatedAsyncioTestCase):
             "好的，让我帮你搜一下",
         )
 
-    async def test_async_stream_run_omits_empty_tool_call_leadin_content(self):
+    async def test_stream_omits_empty_tool_call_leadin_content(self):
         fake_adapter = FakeAsyncStreamAdapter([])
         agent = _agent_for_echo(fake_adapter)
 
-        async for _ in agent.async_stream_run(
+        async for _ in agent.stream(
             RunInput(session_id="session-a", user_input="帮我测试工具")
         ):
             pass
@@ -317,32 +378,36 @@ class TestAsyncAgent(unittest.IsolatedAsyncioTestCase):
         run_setup = RunSetup(
             state=agent.state,
             agent_profile=agent.agent_profile,
+            runtime_system_prompt=agent.runtime_system_prompt,
             adapter=fake_adapter,
             approval_policy=ApprovalPolicy.NEVER,
             effective_agent_name="Default Agent",
             workspace_path="",
         )
-        lifecycle = RunLifecycle(
-            RunLifecycleParams(
-                setup=run_setup,
-                agent_runner=agent,
-                recorder=recorder,
-                run_input=RunInput(session_id="session-a", user_input="帮我测试工具"),
+        with patch("backend.run.lifecycle.RunRecorder", return_value=recorder), \
+             patch("backend.run.lifecycle.RunTraceStore"), \
+             patch("backend.run.lifecycle.SqliteApprovalStore"):
+            frames = await _iterate_stream_run(
                 run_id="run-a",
+                run_input=RunInput(session_id="session-a", user_input="帮我测试工具"),
+                run_setup=run_setup,
+                agent=agent,
+                recorder=recorder,
+                db=MagicMock(),
             )
-        )
 
-        usage_items = []
-        async for item in lifecycle.iterate():
-            if isinstance(item, UsageItem):
-                usage_items.append(item)
+            usage_items = [
+                item["data"]
+                for item in frames
+                if isinstance(item, dict) and item.get("type") == "usage"
+            ]
 
-        self.assertEqual([item.model_call_index for item in usage_items], [1, 2])
-        self.assertEqual(usage_items[0].usage.output_tokens, 20)
-        self.assertEqual(usage_items[0].usage.total_tokens, 120)
-        self.assertEqual(usage_items[1].usage.input_tokens, 150)
-        self.assertEqual(usage_items[1].usage.output_tokens, 30)
-        self.assertEqual(usage_items[1].usage.total_tokens, 180)
+        self.assertEqual([item["model_call_index"] for item in usage_items], [1, 2])
+        self.assertEqual(usage_items[0]["usage"]["output_tokens"], 20)
+        self.assertEqual(usage_items[0]["usage"]["total_tokens"], 120)
+        self.assertEqual(usage_items[1]["usage"]["input_tokens"], 150)
+        self.assertEqual(usage_items[1]["usage"]["output_tokens"], 30)
+        self.assertEqual(usage_items[1]["usage"]["total_tokens"], 180)
         self.assertEqual(recorder.finalizations[0].usage.input_tokens, 150)
 
     async def test_lifecycle_does_not_persist_transient_tool_call_deltas(self):
@@ -352,25 +417,30 @@ class TestAsyncAgent(unittest.IsolatedAsyncioTestCase):
         run_setup = RunSetup(
             state=agent.state,
             agent_profile=agent.agent_profile,
+            runtime_system_prompt=agent.runtime_system_prompt,
             adapter=fake_adapter,
             approval_policy=ApprovalPolicy.NEVER,
             effective_agent_name="Default Agent",
             workspace_path="",
         )
-        lifecycle = RunLifecycle(
-            RunLifecycleParams(
-                setup=run_setup,
-                agent_runner=agent,
-                recorder=recorder,
-                run_input=RunInput(session_id="session-a", user_input="帮我测试工具"),
+        with patch("backend.run.lifecycle.RunRecorder", return_value=recorder), \
+             patch("backend.run.lifecycle.RunTraceStore"), \
+             patch("backend.run.lifecycle.SqliteApprovalStore"):
+            frames = await _iterate_stream_run(
                 run_id="run-a",
+                run_input=RunInput(session_id="session-a", user_input="帮我测试工具"),
+                run_setup=run_setup,
+                agent=agent,
+                recorder=recorder,
+                db=MagicMock(),
             )
-        )
 
-        live_tool_call_events = []
-        async for item in lifecycle.iterate():
-            if getattr(item, "type", None) == "run_event" and item.event.type == "assistant_tool_call":
-                live_tool_call_events.append(item.event)
+            live_tool_call_events = []
+            for item in frames:
+                if isinstance(item, dict) and item.get("type") == "run_event":
+                    event = RunEvent.model_validate(item["data"])
+                    if event.type == "assistant_tool_call":
+                        live_tool_call_events.append(event)
 
         persisted_tool_call_events = [
             event

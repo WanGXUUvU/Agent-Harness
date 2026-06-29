@@ -10,8 +10,11 @@ from backend.infra.db.orm_models import (
     ToolCallRecord,
 )
 from backend.core.types import ChatMessage
-from backend.memory.session.service import SessionService
-from backend.memory.session.types import CreateSessionInput, ForkSessionInput
+from backend.session.create_session import create_session
+from backend.session.fork_session import fork_session
+from backend.session.read_session import read_session
+from backend.session.store import SessionStore
+from backend.session.types import CreateSessionInput, ForkSessionInput
 
 
 class TestSessionFork(unittest.TestCase):
@@ -20,7 +23,7 @@ class TestSessionFork(unittest.TestCase):
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine)
         self.db = self.Session()
-        self.service = SessionService(self.db)
+        self.store = SessionStore(self.db)
 
     def tearDown(self):
         self.db.close()
@@ -28,12 +31,10 @@ class TestSessionFork(unittest.TestCase):
 
     def test_fork_session_success(self):
         # 1. 创建原会话并注入对话历史记录
-        summary = self.service.create_session(
-            CreateSessionInput(session_name="my_parent_session")
-        )
+        summary = create_session(self.db, CreateSessionInput(session_name="my_parent_session"))
         parent_id = summary.session_id
 
-        record, state = self.service.get_session(parent_id)
+        record, state = read_session(self.db, parent_id)
         state.messages = [
             ChatMessage(role="system", content="System Prompt"),
             ChatMessage(role="user", content="Hello"),
@@ -43,7 +44,7 @@ class TestSessionFork(unittest.TestCase):
                 role="assistant", content="Why did the scarecrow win an award?"
             ),
         ]
-        self.service.store.save_state(parent_id, state)
+        self.store.save_state(parent_id, state)
 
         # 2. 在原会话中注入 Runs、Events 和 Tool Calls 数据以验证深度拷贝
         run1 = SessionRunRecord(
@@ -78,7 +79,7 @@ class TestSessionFork(unittest.TestCase):
         # 3. 触发派生会话分支 (在 index = 3 处派生，即保留 system, user(Hello), assistant(Hi)，舍弃后面的消息)
         # 此时对应的 K = 1 (Hello)，因此 r1 应被复制，r2 被舍弃
         fork_input = ForkSessionInput(message_index=3)
-        fork_summary = self.service.fork_session(parent_id, fork_input)
+        fork_summary = fork_session(self.db, parent_id, fork_input)
         forked_id = fork_summary.session_id
 
         # 4. 验证会话表字段与元数据拷贝
@@ -94,12 +95,12 @@ class TestSessionFork(unittest.TestCase):
         self.assertEqual(forked_db.fork_message_index, 3)
 
         # 5. 验证新会话的历史消息长度与内容
-        _, forked_state = self.service.get_session(forked_id)
+        _, forked_state = read_session(self.db, forked_id)
         self.assertEqual(len(forked_state.messages), 3)
         self.assertEqual(forked_state.messages[1].content, "Hello")
 
         # 原会话应该完整保存，不受影响
-        _, original_state = self.service.get_session(parent_id)
+        _, original_state = read_session(self.db, parent_id)
         self.assertEqual(len(original_state.messages), 5)
 
         # 6. 验证 Runs 以及 Trace 数据克隆
@@ -145,10 +146,10 @@ class TestSessionFork(unittest.TestCase):
         forked_state.messages.append(
             ChatMessage(role="user", content="New query in child")
         )
-        self.service.store.save_state(forked_id, forked_state)
+        self.store.save_state(forked_id, forked_state)
 
         # 重读验证
-        _, final_original_state = self.service.get_session(parent_id)
+        _, final_original_state = read_session(self.db, parent_id)
         self.assertEqual(len(final_original_state.messages), 5)
 
 

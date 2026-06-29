@@ -1,16 +1,4 @@
-"""
-from backend.tools.result_types import ToolResult
-from backend.tools.types import RiskLevel
-[九层模型 - L3 工具层 (Tools Layer)]
-
-文件职责：
-- 异步派发子智能体任务的桥接工具（spawn_child_agent）。
-- 接收 `child_dispatcher` 纯闭包回调，彻底与 L8 认知引擎和 L5 物理落库解耦，排除一切物理 import。
-- 仅负责接收模型意图，调用回调获取 child_run_id，并包装为 ToolResult 返回给上层。
-
-上游依赖：L8 执行层通过 build_run_registry 进行闭包回调注入。
-下游依赖：纯无状态 Callable 接口。
-"""
+"""构建派发子 Agent 的工具定义。"""
 
 from typing import Callable
 from backend.tools.types import ToolDefinition
@@ -21,27 +9,10 @@ from backend.tools.types import RiskLevel
 def build_spawn_child_agent_tool(
     child_dispatcher: Callable[[str, str], str],
 ) -> ToolDefinition:
-    """这是一个“派发（召唤）子智能体工具的加工厂（构建函数）”。
-    它接收一个用来真正分发任务的回调函数，然后将“召唤子智能体小帮手”这个工具的定义（ToolDefinition）给加工并打包出来。
-
-    需要拿到的东西：
-    - child_dispatcher (Callable): 一个用于真正派发子智能体任务的回调函数。
-
-    会给出来的结果：
-    - ToolDefinition: 加工好、随时能提供给 AI 使用的“召唤子智能体”工具定义对象。
-    """
+    """构建派发子 Agent 的工具定义。"""
 
     def spawn_child_agent(task: str, agent_name: str = "子Agent") -> ToolResult:
-        """这是真正的“召唤子智能体去干活”的工具执行函数。
-        它可以在后台叫出一个专属的“子 Agent 小帮手”，把任务分给它去异步执行。这个函数会非常爽快，叫完人、发完任务，立马塞给你一个唯一的任务凭证（child_run_id），根本不用等小帮手做完就结束了。
-
-        需要拿到的东西：
-        - task (str): 派发给子智能体的具体任务描述（比如：“请帮我把这个文件夹下的 Python 文件都检查一遍”）。
-        - agent_name (str, 默认 "子Agent"): 给你派出的这个小助手起个好听的职称（比如：“代码审查员”），方便在界面上好看。
-
-        会给出来的结果：
-        - ToolResult: 一个包含任务凭证（child_run_id）的结果对象。如果派发成功，可以通过 `content` 拿到这个 ID；如果派发出错，ok 会是 False。
-        """
+        """派发一个异步子 Agent 任务。"""
         try:
             child_run_id = child_dispatcher(task, agent_name)
             return ToolResult(

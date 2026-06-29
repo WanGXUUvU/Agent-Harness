@@ -8,14 +8,14 @@
 
 import asyncio
 import unittest
-from unittest.mock import MagicMock
 
+from backend.approval.checker import needs_approval
 from backend.tools.types import RiskLevel
 from backend.core.types import ChatMessage, ToolCall, ToolCallFunction
 from backend.security.policy import ApprovalPolicy
-from backend.security.approval.checker import needs_approval
-from backend.execution.runtime.tool_runner import async_handle_tool_calls
+from backend.agent_loop.handle_tool_calls import stream_tool_calls
 from backend.tools.registry import ToolRegistry
+from backend.tools.result_types import ToolResult
 from backend.tools.types import ToolDefinition
 
 # ── 辅助：构造一个 fake ToolRegistry，只返回指定的 risk_level ──────────────
@@ -26,16 +26,12 @@ def make_registry(risk_level: RiskLevel) -> ToolRegistry:
     registry = ToolRegistry()
 
     def fake_handler(**kwargs):
-        return "ok"
+        return ToolResult(ok=True, content="ok")
 
     registry.register(
         ToolDefinition(
             name="fake_tool",
-            schema={
-                "name": "fake_tool",
-                "description": "",
-                "parameters": {"type": "object", "properties": {}},
-            },
+            schema={},
             handler=fake_handler,
             risk_level=risk_level,
         )
@@ -44,23 +40,15 @@ def make_registry(risk_level: RiskLevel) -> ToolRegistry:
 
 
 def make_mixed_registry() -> ToolRegistry:
-    """构造一个 safe 工具和一个 write 工具，用于覆盖混合审批批次。"""
+    """构造一个包含 SAFE 工具和 WRITE 工具的 ToolRegistry。"""
     registry = ToolRegistry()
 
-    def safe_handler(**kwargs):
-        return "safe-ok"
-
-    def write_handler(**kwargs):
-        return "write-ok"
-
+    safe_handler = lambda **k: ToolResult(ok=True, content="safe-ok")
+    write_handler = lambda **k: ToolResult(ok=True, content="write-ok")
     registry.register(
         ToolDefinition(
             name="safe_tool",
-            schema={
-                "name": "safe_tool",
-                "description": "",
-                "parameters": {"type": "object", "properties": {}},
-            },
+            schema={},
             handler=safe_handler,
             risk_level=RiskLevel.SAFE,
         )
@@ -68,11 +56,7 @@ def make_mixed_registry() -> ToolRegistry:
     registry.register(
         ToolDefinition(
             name="write_tool",
-            schema={
-                "name": "write_tool",
-                "description": "",
-                "parameters": {"type": "object", "properties": {}},
-            },
+            schema={},
             handler=write_handler,
             risk_level=RiskLevel.WRITE,
         )
@@ -87,12 +71,12 @@ def make_tool_call(name: str = "fake_tool", tool_call_id: str = "call_001") -> T
     )
 
 
-async def collect_events(registry, tool_calls, policy, on_approval_required=None):
-    """运行 async_handle_tool_calls，收集所有 RunEvent，返回事件列表。"""
-    from backend.execution.runtime.types import RunEvent
+async def collect_events(registry, tool_calls, policy):
+    """运行 stream_tool_calls，收集所有 RunEvent，返回事件列表。"""
+    from backend.agent_loop.types import RunEvent
 
     events = []
-    async for item in async_handle_tool_calls(
+    async for item in stream_tool_calls(
         tool_registry=registry,
         tool_calls=tool_calls,
         allow_tool_names=None,
@@ -100,7 +84,6 @@ async def collect_events(registry, tool_calls, policy, on_approval_required=None
         session_id="mock_session",
         run_id="mock_run",
         approval_policy=policy,
-        on_approval_required=on_approval_required,
     ):
         if isinstance(item, RunEvent):
             events.append(item)
@@ -129,7 +112,7 @@ class TestNeedsApproval(unittest.TestCase):
         self.assertTrue(needs_approval(ApprovalPolicy.ON_REQUEST, RiskLevel.DANGER))
 
 
-# ── async_handle_tool_calls 集成测试 ─────────────────────────────────────────
+# ── stream_tool_calls 集成测试 ─────────────────────────────────────────
 
 
 class TestAsyncHandleToolCallsApproval(unittest.TestCase):
@@ -149,8 +132,8 @@ class TestAsyncHandleToolCallsApproval(unittest.TestCase):
             collect_events(registry, [make_tool_call()], ApprovalPolicy.NEVER)
         )
         types = [e.type for e in events]
-        self.assertNotIn("approval_required", types)
         self.assertIn("tool_result", types)
+        self.assertNotIn("approval_required", types)
 
     def test_untrusted_policy_blocks_write_tool(self):
         """UNTRUSTED policy：WRITE 工具被拦截，产生 approval_required，不产生 tool_result。"""
@@ -169,8 +152,8 @@ class TestAsyncHandleToolCallsApproval(unittest.TestCase):
             collect_events(registry, [make_tool_call()], ApprovalPolicy.ON_REQUEST)
         )
         types = [e.type for e in events]
-        self.assertNotIn("approval_required", types)
         self.assertIn("tool_result", types)
+        self.assertNotIn("approval_required", types)
 
     def test_on_request_policy_blocks_danger_tool(self):
         """ON_REQUEST policy：DANGER 工具被拦截，产生 approval_required。"""
@@ -182,64 +165,24 @@ class TestAsyncHandleToolCallsApproval(unittest.TestCase):
         self.assertIn("approval_required", types)
         self.assertNotIn("tool_result", types)
 
-    def test_on_approval_required_callback_called(self):
-        """UNTRUSTED policy 拦截时，on_approval_required 回调被调用一次。"""
+    def test_approval_required_event_content_is_arguments(self):
+        """approval_required 事件的 content 包含 arguments。"""
         registry = make_registry(RiskLevel.WRITE)
-        callback = MagicMock(return_value="approval-123")
-        self._run(
-            collect_events(
-                registry,
-                [make_tool_call()],
-                ApprovalPolicy.UNTRUSTED,
-                on_approval_required=callback,
-            )
-        )
-        callback.assert_called_once_with(
-            "call_001",
-            "fake_tool",
-            "{}",
-            [],
-            1,
-            "mock_run:step:0",
-        )
-
-    def test_approval_required_event_content_is_approval_id(self):
-        """approval_required 事件的 content 包含回调返回的 approval_id。"""
-        registry = make_registry(RiskLevel.WRITE)
-        callback = MagicMock(return_value="approval-abc")
         events = self._run(
-            collect_events(
-                registry,
-                [make_tool_call()],
-                ApprovalPolicy.UNTRUSTED,
-                on_approval_required=callback,
-            )
+            collect_events(registry, [make_tool_call()], ApprovalPolicy.UNTRUSTED)
         )
         approval_event = next(e for e in events if e.type == "approval_required")
-        self.assertEqual(approval_event.content, "approval-abc")
+        self.assertEqual(approval_event.content, "{}")
 
-    def test_mixed_ready_and_pending_approval_snapshot_includes_ready_result(self):
-        """同批次含 ready + pending 时，审批快照应包含已完成 ready 工具结果。"""
+    def test_mixed_ready_and_pending_approval_yields_ready_result(self):
+        """同批次含 ready + pending 时，已完成 ready 工具结果应该被正确产生并放入消息暂存。"""
         registry = make_mixed_registry()
-        base_messages = [ChatMessage(role="user", content="run mixed tools")]
-        captured = {}
-
-        def callback(
-            tool_call_id, tool_name, arguments, saved_messages, event_index, batch_id
-        ):
-            captured["tool_call_id"] = tool_call_id
-            captured["tool_name"] = tool_name
-            captured["saved_messages"] = saved_messages
-            captured["event_index"] = event_index
-            captured["batch_id"] = batch_id
-            return "approval-mixed"
-
         events = []
+        tool_batch_result = None
 
         async def run():
-            from backend.execution.runtime.types import RunEvent
-
-            async for item in async_handle_tool_calls(
+            nonlocal tool_batch_result
+            async for item in stream_tool_calls(
                 tool_registry=registry,
                 tool_calls=[
                     make_tool_call("safe_tool", "call_safe"),
@@ -250,25 +193,16 @@ class TestAsyncHandleToolCallsApproval(unittest.TestCase):
                 session_id="mock_session",
                 run_id="mock_run",
                 approval_policy=ApprovalPolicy.UNTRUSTED,
-                on_approval_required=callback,
-                saved_messages=base_messages,
             ):
+                from backend.agent_loop.types import RunEvent, ToolBatchResult
                 if isinstance(item, RunEvent):
                     events.append(item)
+                elif isinstance(item, ToolBatchResult):
+                    tool_batch_result = item
 
         self._run(run())
 
-        self.assertEqual(captured["tool_call_id"], "call_write")
-        self.assertEqual(captured["tool_name"], "write_tool")
-        self.assertEqual(captured["event_index"], 3)
-        self.assertEqual(captured["batch_id"], "mock_run:step:0")
-
-        snapshot = captured["saved_messages"]
-        self.assertEqual(len(base_messages), 1)
-        self.assertEqual([msg.role for msg in snapshot], ["user", "tool"])
-        self.assertEqual(snapshot[1].tool_call_id, "call_safe")
-        self.assertEqual(snapshot[1].content, "safe-ok")
-
+        # 验证 ready_tool (safe_tool) 被执行并有 tool_result，但 pending_tool (write_tool) 被拦截
         self.assertEqual(
             [event.type for event in events],
             [
@@ -278,6 +212,12 @@ class TestAsyncHandleToolCallsApproval(unittest.TestCase):
                 "approval_required",
             ],
         )
+
+        self.assertIsNotNone(tool_batch_result)
+        self.assertTrue(tool_batch_result.paused_for_approval)
+        self.assertEqual(len(tool_batch_result.tool_messages), 1)
+        self.assertEqual(tool_batch_result.tool_messages[0].tool_call_id, "call_safe")
+        self.assertEqual(tool_batch_result.tool_messages[0].content, "safe-ok")
 
 
 if __name__ == "__main__":

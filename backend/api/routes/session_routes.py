@@ -1,65 +1,56 @@
-"""接口与适配层 (Interface Layer) - 会话路由控制器
-
-职责：
-1. 提供会话（Session）与执行轨迹（Trace）的 CRUD 路由适配。
-2. 支持创建会话、会话重命名、删除会话、以及查询会话历史记录。
-
-不负责：
-1. 会话与物理文件夹绑定的具体业务动作（由 WorkspaceService 负责）。
-2. 底层数据库会话和 Trace 的物理读写。
-
-数据流向：
-- 输入：HTTP 路由入参及 Session 动作 DTO。
-- 输出：会话对象或历史消息列表。
-- 上游来源：前端 sidebar 列表与对话主视窗。
-- 下游流向：调用 backend/memory/session/service.py。
-"""
+"""定义会话相关 HTTP 路由。"""
 
 import os
 
 from fastapi import APIRouter, Depends, status
+from sqlalchemy.orm import Session
 
-from backend.memory.session.types import (
-    CreateSessionInput,
-    SessionSummary,
-    RenameSessionInput,
-    TruncateSessionInput,
-    ForkSessionInput,
-)
 from backend.api.dto.schemas import SessionDetail
-from backend.memory.session.service import SessionService
-from backend.api.routes.dependencies import error_response, get_session_service
+from backend.api.routes.dependencies import error_response
+from backend.infra.db.engine import get_db
+from backend.session import (
+    CreateSessionInput,
+    ForkSessionInput,
+    RenameSessionInput,
+    SessionSummary,
+    TruncateSessionInput,
+    create_session,
+    delete_session,
+    fork_session,
+    list_sessions,
+    read_session,
+    truncate_session,
+    update_session,
+)
 
 router = APIRouter()
 
 
 @router.post("/sessions", response_model=SessionSummary)
 def create_session_api(
-    payload: CreateSessionInput, service: SessionService = Depends(get_session_service)
+    payload: CreateSessionInput,
+    db: Session = Depends(get_db),
 ) -> SessionSummary:
-    """这个函数是用来创建一个新的会话（Session）的。
-
-    每次你想跟 Agent 开启一段全新的聊天，或者换一个工作区重新做任务时，就用这个接口建一个新会话。
-
-    需要拿到的东西：
-    - payload: CreateSessionInput 对象，里面包含新会话的名字、使用哪种权限、关联哪个工作区等配置。
-    - service: SessionService 实例，由依赖注入提供。
-
-    会给出来的结果：
-    - SessionSummary 对象，也就是这个新会话的简要基本信息（比如 ID、名字、创建时间等）。
-    """
-    return service.create_session(payload)
+    """创建新会话。"""
+    return create_session(
+        db=db,
+        payload=payload,
+    )
 
 
 @router.post("/sessions/{session_id}/fork", response_model=SessionSummary)
 def fork_session_api(
     session_id: str,
     payload: ForkSessionInput,
-    service: SessionService = Depends(get_session_service),
+    db: Session = Depends(get_db),
 ) -> SessionSummary:
-    """从指定位置派生分支会话的 API 接口，深度复制历史消息与 Trace 流水记录。"""
+    """从指定消息位置派生分支会话。"""
     try:
-        return service.fork_session(session_id, payload)
+        return fork_session(
+            db=db,
+            session_id=session_id,
+            payload=payload,
+        )
     except ValueError as exc:
         return error_response(status.HTTP_400_BAD_REQUEST, "bad_request", str(exc))
 
@@ -68,67 +59,52 @@ def fork_session_api(
 def truncate_session_api(
     session_id: str,
     payload: TruncateSessionInput,
-    service: SessionService = Depends(get_session_service),
+    db: Session = Depends(get_db),
 ) -> dict[str, bool]:
-    """截断指定会话历史的 API 接口，物理级联清理其后的 traces 记录。"""
+    """截断指定会话后续历史。"""
     try:
-        return service.truncate_session(session_id, payload.message_index)
+        return truncate_session(
+            db=db,
+            session_id=session_id,
+            message_index=payload.message_index,
+        )
     except ValueError as exc:
         return error_response(status.HTTP_400_BAD_REQUEST, "bad_request", str(exc))
 
 
 @router.delete("/sessions/{session_id}")
 def delete_session_api(
-    session_id: str, service: SessionService = Depends(get_session_service)
+    session_id: str,
+    db: Session = Depends(get_db),
 ) -> dict[str, bool]:
-    """这个函数是用来彻底删除某一个不需要的会话的。
-
-    调用这个接口后，该会话下的所有聊天历史记录和相关数据都会被清理干净。
-
-    需要拿到的东西：
-    - session_id: 字符串类型，代表要删除的那个会话的唯一身份证。
-    - service: SessionService 实例，由依赖注入提供。
-
-    会给出来的结果：
-    - 一个字典，形如 {"status": True}，代表删除操作是否成功完成。
-    """
+    """删除会话。"""
     try:
-        return service.delete_session(session_id)
+        return delete_session(
+            db=db,
+            session_id=session_id,
+        )
     except ValueError as exc:
         return error_response(status.HTTP_400_BAD_REQUEST, "bad_request", str(exc))
 
 
 @router.get("/sessions", response_model=list[SessionSummary])
 def list_sessions_api(
-    service: SessionService = Depends(get_session_service),
+    db: Session = Depends(get_db),
 ) -> list[SessionSummary]:
-    """这个函数是用来获取系统里所有会话的摘要列表的。
-
-    常用于前端侧边栏（Sidebar）初始化时，展示用户以前聊过的所有会话列表。
-
-    需要拿到的东西：
-    - service: SessionService 实例，由依赖注入提供。
-
-    会给出来的结果：
-    - 一个包含多个 SessionSummary 对象的列表，列表里每个元素都装有对应会话的名字、最后一条消息预览、消息数量等概要信息。
-    """
-    return service.list_sessions()
+    """列出所有会话摘要。"""
+    return list_sessions(db=db)
 
 
 @router.get("/sessions/{session_id}", response_model=SessionDetail)
 def read_session_api(
-    session_id: str, service: SessionService = Depends(get_session_service)
+    session_id: str,
+    db: Session = Depends(get_db),
 ) -> SessionDetail:
-    """这个函数是用来读取单个会话的极详细内幕信息的（比如它里面的具体聊天消息、使用的模型、是否开启深度思考等）。
-
-    需要拿到的东西：
-    - session_id: 字符串类型，也就是你要查看的会话的唯一身份证。
-    - service: SessionService 实例，由依赖注入提供。
-
-    会给出来的结果：
-    - SessionDetail 对象，里面包含了会话的所有细节和完整的历史消息状态。
-    """
-    record, state = service.get_session(session_id)
+    """读取单个会话详情。"""
+    record, state = read_session(
+        db=db,
+        session_id=session_id,
+    )
     if record is None or state is None:
         return error_response(
             status.HTTP_404_NOT_FOUND, "session_not_found", "Session not found"
@@ -162,19 +138,14 @@ def read_session_api(
 def rename_session_api(
     session_id: str,
     payload: RenameSessionInput,
-    service: SessionService = Depends(get_session_service),
+    db: Session = Depends(get_db),
 ) -> dict[str, bool]:
-    """这个函数是用来修改会话属性的，比如给会话改个更贴切的新名字，或者更换关联的模型和工作区参数等。
-
-    需要拿到的东西：
-    - session_id: 字符串类型，你要修改的会话的唯一身份证。
-    - payload: RenameSessionInput 对象，里面包含了新的会话名字、选用的模型等要更新的参数。
-    - service: SessionService 实例，由依赖注入提供。
-
-    会给出来的结果：
-    - 一个字典，形如 {"status": True}，代表会话信息修改（如改名）是否成功。
-    """
+    """更新会话属性。"""
     try:
-        return service.update_session(session_id, payload)
+        return update_session(
+            db=db,
+            session_id=session_id,
+            payload=payload,
+        )
     except ValueError as exc:
         return error_response(status.HTTP_400_BAD_REQUEST, "bad_request", str(exc))

@@ -1,9 +1,4 @@
-"""Simple local database MCP server.
-
-This server exposes a minimal read-only interface over the project's local
-SQLite database. It is intentionally small so the MCP integration can stay
-easy to debug.
-"""
+"""提供本地数据库只读访问的 MCP 服务。"""
 
 import os
 
@@ -28,7 +23,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 @mcp.tool()
 def get_tables() -> list[str]:
-    """Get all table names from the current database."""
+    """返回当前数据库里的所有表名。"""
 
     inspector = inspect(engine)
     return inspector.get_table_names()
@@ -36,11 +31,7 @@ def get_tables() -> list[str]:
 
 @mcp.tool()
 def get_table_columns(table_name: str) -> list[str]:
-    """Get all column names for a database table.
-
-    Args:
-        table_name: Exact table name to inspect.
-    """
+    """返回指定数据表的所有列名。"""
 
     inspector = inspect(engine)
     table_names = inspector.get_table_names()

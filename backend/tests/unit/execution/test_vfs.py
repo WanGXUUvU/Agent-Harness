@@ -15,7 +15,7 @@ import tempfile
 import threading
 import unittest
 
-from backend.execution.runtime.vfs import StagingFileSystem
+from backend.run.runtime.vfs import StagingFileSystem
 
 
 class TestStagingFileSystem(unittest.TestCase):

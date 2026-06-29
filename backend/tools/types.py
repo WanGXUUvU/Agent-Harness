@@ -1,19 +1,4 @@
-"""工具描述核心类型定义。
-
-职责：
-- 定义系统内工具注册规范：ToolDefinition 类。
-- 提供工具安全拦截评估依赖的安全风险等级 Enum：RiskLevel。
-
-上游：
-- ToolRegistry
-
-下游：
-- 各内置工具的 build_definition 方法
-
-不负责：
-- 不提供工具的具体运行时执行逻辑。
-- 不做具体模型的协议消息转换。
-"""
+"""定义工具注册和风险等级类型。"""
 
 from dataclasses import dataclass
 from enum import Enum

@@ -1,18 +1,4 @@
-"""基础设施层 (Infrastructure Layer) - 文件系统物理读取工具
-
-from backend.tools.types import RiskLevel
-职责：
-1. 执行具体的本地磁盘文件读取操作，获取全部文本内容。
-
-不负责：
-1. 路径的安全性验证及物理隔离。
-
-数据流向：
-- 输入：绝对文件路径。
-- 输出：文件完整文本内容。
-- 上游来源：经安全中间件校验后的 Tool 调用。
-- 下游流向：操作系统物理磁盘。
-"""
+"""定义读文件工具并执行文件读取。"""
 
 from pathlib import Path  # 方便处理文件路径
 from backend.tools.types import ToolDefinition  # 导入工具定义
@@ -21,9 +7,7 @@ from backend.tools.result_types import ToolResult
 
 
 def read_file(path: str, __context__=None) -> ToolResult:
-    """这是"读取文件内容"的具体执行函数。
-    （读取优先查 VFS 暂存区，命中则直接返回；没有命中才降级读物理磁盘。）
-    """
+    """读取文件内容，优先命中 VFS 暂存区。"""
     # 🟢 优先检查 VFS 暂存区（可能有本次 Run 中其他工具刚暂存的新内容）
     vfs = None
     if __context__ is not None:
@@ -72,11 +56,7 @@ READ_FILE_SCHEMA = {  # 给模型看的说明
 
 
 def build_read_file_tool_definition() -> ToolDefinition:  # 构造注册对象
-    """把上面的“读取文件内容”工具打包加工，返回一个可供 AI 直接调用和注册的工具定义对象。
-
-    会给出来的结果：
-    - ToolDefinition: 打包好、带安全等级的工具定义对象。
-    """
+    """构建读文件工具定义。"""
     return ToolDefinition(
         name="read_file",  # 工具名
         schema=READ_FILE_SCHEMA,  # schema

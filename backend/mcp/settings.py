@@ -17,7 +17,7 @@ def save_mcp_servers(servers: list) -> None:
     if "mcp" not in settings:
         settings["mcp"] = {}
     settings["mcp"]["servers"] = servers
-    save_settings(settings)
+    save_settings(data=settings)
 
 
 def build_mcp_server_config(
@@ -82,7 +82,7 @@ def load_all_mcp_server_configs() -> list[
     configs = []
     mcp_servers = get_mcp_servers()
     for mcp_server in mcp_servers:
-        mcp_config = build_mcp_server_config(mcp_server)
+        mcp_config = build_mcp_server_config(raw_config=mcp_server)
         configs.append(mcp_config)
     return configs
 

@@ -5,11 +5,13 @@
 """
 
 from backend.tools.types import ToolDefinition
-from backend.tools.registry import (
-    ToolRegistry,
+from backend.tools.build_registry import (
+    DEFAULT_TOOL_REGISTRY,
     build_default_tool_registry,
     build_run_registry,
-    DEFAULT_TOOL_REGISTRY,
+)
+from backend.tools.registry import (
+    ToolRegistry,
 )
 
 __all__ = [

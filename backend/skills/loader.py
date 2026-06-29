@@ -1,14 +1,4 @@
-"""
-[九层模型 - L4 技能层 - 基础设施 (Skill Loader Infra)]
-
-文件职责：
-1. 负责系统技能（Skills）的物理文件扫描、Frontmatter 解析和启用状态持久化配置。
-2. 整合原 skills/loader/config.py 与 skills/loader/loader.py，消灭多余的 loader/ 子目录。
-
-数据流向：
-- 输入：物理技能文件的读取请求与配置变更。
-- 输出：SkillSummary 对象列表、完整技能 Markdown 文本。
-"""
+"""加载技能列表和技能内容。"""
 from pathlib import Path
 from typing import Optional
 from backend.skills.types import SkillSummary
@@ -85,7 +75,7 @@ def list_skills() -> list[SkillSummary]:
 
 
 def _load_skill_summary(
-    skill_file: Path, source_name: str, root_path: Path
+    skill_file: Path, _source_name: str, _root_path: Path
 ) -> SkillSummary:
     """输入：单个 SKILL.md 路径、来源名、来源根目录。输出：一个 SkillSummary。"""
     safe_path = skill_file.as_posix()

@@ -1,13 +1,13 @@
 import tempfile
 import unittest
 
+from backend.approval import (
+    ApprovalRunNotPaused,
+    SqliteApprovalStore,
+    approve_approval,
+)
 from backend.core.types import ChatMessage
 from backend.infra.db.orm_models import SessionRunRecord
-from backend.security.approval.service import (
-    ApprovalRunNotPaused,
-    ApprovalService,
-)
-from backend.security.approval.store import SqliteApprovalStore
 from backend.tests.helpers.db import make_sqlite_test_db
 
 
@@ -56,7 +56,10 @@ class TestApprovalService(unittest.TestCase):
             approval = self._seed_approval(db, "running")
 
             with self.assertRaises(ApprovalRunNotPaused):
-                ApprovalService(db).approve(approval.id)
+                approve_approval(
+                    db=db,
+                    approval_id=approval.id,
+                )
 
             db.refresh(approval)
             self.assertEqual(approval.status, "pending")
@@ -68,7 +71,10 @@ class TestApprovalService(unittest.TestCase):
         try:
             approval = self._seed_approval(db, "paused")
 
-            record = ApprovalService(db).approve(approval.id)
+            record = approve_approval(
+                db=db,
+                approval_id=approval.id,
+            )
 
             self.assertIsNotNone(record)
             self.assertEqual(record.status, "approved")

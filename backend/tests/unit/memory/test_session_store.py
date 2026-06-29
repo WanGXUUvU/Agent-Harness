@@ -1,8 +1,8 @@
 import tempfile
 import unittest
 
-from backend.execution.runtime.types import RunState
-from backend.memory.session.store import SessionStore
+from backend.agent_loop.types import RunState
+from backend.session.store import SessionStore
 from backend.tests.helpers.db import make_sqlite_test_db
 
 

@@ -1,20 +1,4 @@
-"""基础设施层 (Infrastructure Layer) - Tavily 网络搜索工具
-
-from backend.tools.result_types import ToolResult
-from backend.tools.types import RiskLevel
-职责：
-1. 调用 Tavily HTTP API 发起外部互联网的资料检索。
-2. 获取搜索到的核心网页内容及参考链接。
-
-不负责：
-1. 搜索结果与系统提示词的整合编排。
-
-数据流向：
-- 输入：搜索关键词字符串。
-- 输出：匹配到的互联网内容片段与参考 URL 列表。
-- 上游来源：应用层工具执行模块。
-- 下游流向：外部互联网 Tavily 物理 API。
-"""
+"""定义网络搜索工具并调用 Tavily。"""
 
 import json
 import os
@@ -27,16 +11,7 @@ from backend.tools.types import ToolDefinition
 
 
 def web_search(query: str, num_results: int = 5) -> ToolResult:
-    """这是“网页搜索引擎”的具体执行函数。
-    当你想查一下最新的新闻、最新的代码库用法，或者 AI 的知识库不够新时，这个工具会飞快地跑去 Tavily 搜索引擎发起网络搜索，把查到的核心网页文本和参考链接原封不动拉回来给你看。
-
-    需要拿到的东西：
-    - query (str): 你想在网上搜索什么词。
-    - num_results (int, 默认 5): 你最多想要几个搜索结果（一般最多能拿 10 个）。
-
-    会给出来的结果：
-    - ToolResult: 一个搜索结果包裹。如果成功，`content` 里就是一串 JSON 文本，包含查到的所有网页标题、正文片段和 URL；如果失败了（比如你忘了在环境变量里配 API Key 或者网络断了），它会返回 False 并给出原因。
-    """
+    """调用 Tavily 执行网络搜索。"""
 
     api_key = os.environ.get("WEB_SEARCH_API_KEY")
 
@@ -98,11 +73,7 @@ WEB_SEARCH_TOOL_SCHEMA = {
 
 
 def build_web_search_tool_definition() -> ToolDefinition:
-    """把上面的“网页搜索引擎”工具打包加工，返回一个可供 AI 直接调用和注册的工具定义对象。
-
-    会给出来的结果：
-    - ToolDefinition: 打包好、带安全等级的工具定义对象。
-    """
+    """构建网络搜索工具定义。"""
     return ToolDefinition(
         name="web_search",
         schema=WEB_SEARCH_TOOL_SCHEMA,

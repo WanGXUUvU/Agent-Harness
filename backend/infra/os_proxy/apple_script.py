@@ -1,8 +1,4 @@
-"""macOS AppleScript 物理驱动。
-
-职责：在 macOS 系统上调起原生 Finder 文件夹选择对话框，返回绝对路径。
-此模块不属于工具层（无 ToolDefinition），而是纯 OS 交互辅助函数。
-"""
+"""调用 macOS 原生文件夹选择对话框。"""
 
 import subprocess
 import os

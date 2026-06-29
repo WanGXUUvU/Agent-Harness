@@ -12,11 +12,15 @@ from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch, MagicMock
 
 from backend.infra.db.orm_models import ModelSetting, ProviderConfig
-from backend.execution.runtime.types import RunState, RunEvent
-from backend.memory.session.store import SessionStore
+from backend.agent_loop.types import RunState, RunEvent
 from backend.memory.run.store import RunTraceStore
-from backend.tools.registry import build_run_registry
-from backend.execution.service import RunService
+from backend.run.child.launcher import (
+    create_child_launcher,
+    create_child_status_checker,
+    create_child_waiter,
+)
+from backend.session.store import SessionStore
+from backend.tools.build_registry import build_default_tool_registry, build_run_registry
 from backend.tests.helpers.db import make_sqlite_test_db
 from backend.tests.helpers.factories import build_run_output
 
@@ -74,8 +78,6 @@ class TestBuildRunRegistry(unittest.TestCase):
 
     def test_spawn_child_agent_not_in_default_registry(self):
         """默认 registry 没有 spawn_child_agent，确保它是动态注册的。"""
-        from backend.tools.registry import build_default_tool_registry
-
         registry = build_default_tool_registry()
         tool_names = [s["function"]["name"] for s in registry.get_tool_schemas()]
         self.assertNotIn("spawn_child_agent", tool_names)
@@ -108,28 +110,27 @@ class TestSpawnChildAgentPersistence(unittest.TestCase):
         )
 
         db = self.session_local()
-        run_service = RunService(db)
 
-        # 核心修复：通过 patch "run_service.AgentRunner" 来正确 mock 线程中实例化的类，并重定向 DB 操作为测试内存库
+        # 通过 patch child run worker 中实例化的 AgentLoop，并重定向 DB 到测试库。
         with (
             patch(
-                "backend.execution.child_run_launcher._executor", self.executor
+                "backend.run.child.launcher._executor", self.executor
             ),
             patch(
-                "backend.execution.child_run_launcher._global_futures",
+                "backend.run.child.launcher._global_futures",
                 self.futures,
             ),
             patch(
-                "backend.execution.child_run_launcher.AgentRunner"
+                "backend.run.child.launcher.AgentLoop"
             ) as MockAgent,
             patch(
-                "backend.execution.child_run_launcher.RunVfsRegistry"
+                "backend.run.child.launcher.RunVfsRegistry"
             ) as MockVfsRegistry,
             patch(
-                "backend.execution.persistence.run_recorder.RunVfsRegistry"
+                "backend.run.runtime.recorder.RunVfsRegistry"
             ) as MockPersistVfsRegistry,
             patch(
-                "backend.execution.child_run_launcher.SessionLocal",
+                "backend.run.child.launcher.SessionLocal",
                 self.session_local,
             ),
         ):
@@ -137,17 +138,17 @@ class TestSpawnChildAgentPersistence(unittest.TestCase):
             mock_instance = MagicMock()
             mock_instance.state = RunState()
             mock_instance.last_usage = None
-            mock_instance.execute.return_value = fake_output
+            mock_instance.run_sync.return_value = fake_output
             MockAgent.return_value = mock_instance
             staged_vfs = MagicMock()
             MockPersistVfsRegistry.get.return_value = staged_vfs
 
             registry = build_run_registry(
-                child_dispatcher=run_service.child_dispatcher.create_launcher(
+                child_dispatcher=create_child_launcher(
                     parent_run_id, session_id
                 ),
-                status_checker=run_service.child_dispatcher.create_status_checker(),
-                child_waiter=run_service.child_dispatcher.create_waiter(),
+                status_checker=create_child_status_checker(),
+                child_waiter=create_child_waiter(),
             )
             result = registry.execute_tool_call(
                 "spawn_child_agent",
@@ -172,7 +173,7 @@ class TestSpawnChildAgentPersistence(unittest.TestCase):
                 MockAgent.call_args.kwargs["model_adapter"].model, "test-model"
             )
             self.assertEqual(
-                mock_instance.execute.call_args.kwargs["run_id"], child_run_id
+                mock_instance.run_sync.call_args.kwargs["run_id"], child_run_id
             )
             MockVfsRegistry.create.assert_called_once_with(child_run_id)
             staged_vfs.commit_all.assert_called_once()
@@ -186,39 +187,38 @@ class TestSpawnChildAgentPersistence(unittest.TestCase):
         _seed_session_model(self.session_local, session_id)
 
         db = self.session_local()
-        run_service = RunService(db)
 
         with (
             patch(
-                "backend.execution.child_run_launcher._executor", self.executor
+                "backend.run.child.launcher._executor", self.executor
             ),
             patch(
-                "backend.execution.child_run_launcher._global_futures",
+                "backend.run.child.launcher._global_futures",
                 self.futures,
             ),
             patch(
-                "backend.execution.child_run_launcher.AgentRunner"
+                "backend.run.child.launcher.AgentLoop"
             ) as MockAgent,
             patch(
-                "backend.execution.child_run_launcher.RunVfsRegistry"
+                "backend.run.child.launcher.RunVfsRegistry"
             ) as MockVfsRegistry,
             patch(
-                "backend.execution.child_run_launcher.SessionLocal",
+                "backend.run.child.launcher.SessionLocal",
                 self.session_local,
             ),
         ):
             mock_instance = MagicMock()
             mock_instance.state = RunState()
             mock_instance.last_usage = None
-            mock_instance.execute.side_effect = RuntimeError("child failed")
+            mock_instance.run_sync.side_effect = RuntimeError("child failed")
             MockAgent.return_value = mock_instance
 
             registry = build_run_registry(
-                child_dispatcher=run_service.child_dispatcher.create_launcher(
+                child_dispatcher=create_child_launcher(
                     parent_run_id, session_id
                 ),
-                status_checker=run_service.child_dispatcher.create_status_checker(),
-                child_waiter=run_service.child_dispatcher.create_waiter(),
+                status_checker=create_child_status_checker(),
+                child_waiter=create_child_waiter(),
             )
             result = registry.execute_tool_call(
                 "spawn_child_agent",
@@ -249,21 +249,20 @@ class TestSpawnChildAgentPersistence(unittest.TestCase):
         fake_output = build_run_output("完成")
 
         db = self.session_local()
-        run_service = RunService(db)
 
         with (
             patch(
-                "backend.execution.child_run_launcher._executor", self.executor
+                "backend.run.child.launcher._executor", self.executor
             ),
             patch(
-                "backend.execution.child_run_launcher._global_futures",
+                "backend.run.child.launcher._global_futures",
                 self.futures,
             ),
             patch(
-                "backend.execution.child_run_launcher.AgentRunner"
+                "backend.run.child.launcher.AgentLoop"
             ) as MockAgent,
             patch(
-                "backend.execution.child_run_launcher.SessionLocal",
+                "backend.run.child.launcher.SessionLocal",
                 self.session_local,
             ),
         ):
@@ -271,15 +270,15 @@ class TestSpawnChildAgentPersistence(unittest.TestCase):
             mock_instance = MagicMock()
             mock_instance.state = RunState()
             mock_instance.last_usage = None
-            mock_instance.execute.return_value = fake_output
+            mock_instance.run_sync.return_value = fake_output
             MockAgent.return_value = mock_instance
 
             registry = build_run_registry(
-                child_dispatcher=run_service.child_dispatcher.create_launcher(
+                child_dispatcher=create_child_launcher(
                     parent_run_id, session_id
                 ),
-                status_checker=run_service.child_dispatcher.create_status_checker(),
-                child_waiter=run_service.child_dispatcher.create_waiter(),
+                status_checker=create_child_status_checker(),
+                child_waiter=create_child_waiter(),
             )
             r1 = registry.execute_tool_call("spawn_child_agent", '{"task": "任务一"}')
             r2 = registry.execute_tool_call("spawn_child_agent", '{"task": "任务二"}')

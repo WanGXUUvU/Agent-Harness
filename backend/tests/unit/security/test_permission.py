@@ -19,10 +19,10 @@ from backend.security.policy import (
     PROFILES,
     SandboxMode,
 )
-from backend.memory.session.types import CreateSessionInput
-from backend.memory.session.service import SessionService
+from backend.session.create_session import create_session
+from backend.session.store import SessionStore
+from backend.session.types import CreateSessionInput
 from backend.infra.db.engine import Base
-from backend.memory.session.store import SessionStore
 
 
 class TestPermissionSchema(unittest.TestCase):
@@ -79,9 +79,7 @@ class TestSessionPermission(unittest.TestCase):
         """新建 session 的 permission_profile 应默认为 conservative。"""
         db = self.session_local()
         try:
-            summary = SessionService(db).create_session(
-                CreateSessionInput(session_name="test")
-            )
+            summary = create_session(db, CreateSessionInput(session_name="test"))
             self.assertEqual(summary.permission_profile, "conservative")
         finally:
             db.close()
@@ -90,7 +88,7 @@ class TestSessionPermission(unittest.TestCase):
         """数据库里的 session 记录也应携带 permission_profile。"""
         db = self.session_local()
         try:
-            summary = SessionService(db).create_session(CreateSessionInput())
+            summary = create_session(db, CreateSessionInput())
             store = SessionStore(db)
             record = store.load_record(summary.session_id)
             self.assertIsNotNone(record)

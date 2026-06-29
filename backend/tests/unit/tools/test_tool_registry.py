@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from backend.security.middleware.base import ToolCallContext
-from backend.tools.registry import build_default_tool_registry
+from backend.tools.build_registry import build_default_tool_registry
 from backend.tools.registry import ToolRegistry
 from backend.tools.types import ToolDefinition, RiskLevel
 

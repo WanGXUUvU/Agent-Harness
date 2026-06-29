@@ -1,8 +1,4 @@
-"""安全策略类型定义。
-
-职责：定义 Session/Agent 级别的权限与审批策略类型，供 security 层内部及上层（api、execution）使用。
-不依赖 model/ 层之外的任何其他层。
-"""
+"""定义沙箱和审批策略类型。"""
 
 from enum import Enum
 from typing import Optional

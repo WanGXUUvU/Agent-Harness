@@ -1,9 +1,9 @@
 import tempfile
 import unittest
 
-from backend.agent.definition import AgentDefinitionService
 from backend.agent.types import AgentDefinition
-from backend.agent.definition import SqliteAgentDefinitionStore
+from backend.agent_definition import load_agent_definition
+from backend.agent_definition.store import SqliteAgentDefinitionStore
 from backend.tests.helpers.db import make_sqlite_test_db
 
 
@@ -34,9 +34,10 @@ class TestAgentLoader(unittest.TestCase):
             )
             db.commit()
 
-            # 实例化全新的 OOP Service 并测试
-            service = AgentDefinitionService(db)
-            definition = service.load_definition("default")
+            definition = load_agent_definition(
+                db=db,
+                agent_id="default",
+            )
 
             self.assertEqual(definition.id, "default")
             self.assertEqual(definition.name, "Default Agent")
@@ -49,8 +50,10 @@ class TestAgentLoader(unittest.TestCase):
     def test_load_default_agent_definition_falls_back_to_memory_default(self):
         db = self.session_local()
         try:
-            service = AgentDefinitionService(db)
-            definition = service.load_definition("default")
+            definition = load_agent_definition(
+                db=db,
+                agent_id="default",
+            )
 
             self.assertEqual(definition.id, "default")
             self.assertEqual(definition.name, "Default Agent")
@@ -65,9 +68,11 @@ class TestAgentLoader(unittest.TestCase):
     def test_load_unknown_agent_definition_raises(self):
         db = self.session_local()
         try:
-            service = AgentDefinitionService(db)
             with self.assertRaises(ValueError) as ctx:
-                service.load_definition("reviewer")
+                load_agent_definition(
+                    db=db,
+                    agent_id="reviewer",
+                )
         finally:
             db.close()
 

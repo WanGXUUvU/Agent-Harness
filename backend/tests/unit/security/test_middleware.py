@@ -8,7 +8,7 @@ from backend.security.middleware.base import (
     MiddlewarePipeline,
     ToolCallContext,
 )
-from backend.security.sandbox.middleware import SandboxMiddleware
+from backend.sandbox.middleware import SandboxMiddleware
 
 
 class DummyMiddleware(BaseMiddleware):

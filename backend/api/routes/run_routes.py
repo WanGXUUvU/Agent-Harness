@@ -1,101 +1,69 @@
-"""接口与适配层 (Interface Layer) - 执行路由控制器
-
-职责：
-1. 提供执行流（Run）相关 API 路由控制（/run, /run/stream, /run/{run_id}/resume）。
-2. 处理 SSE/HTTP 流式响应及打字机效果数据封装。
-3. 使用 Pydantic 进行输入参数强校验（如 RunInput DTO）。
-
-不负责：
-1. 具体的 Agent 执行流控制（由 Application Runtime 层负责）。
-2. 数据持久化存取细节（由 PersistService 负责）。
-
-数据流向：
-- 输入：HTTP POST / GET / SSE 请求及输入校验 DTO。
-- 输出：HTTP JSON 响应或 SSE 事件流。
-- 上游来源：前端对话视窗 / 审批卡片。
-- 下游流向：调用 backend/execution/service.py 进行业务编排。
-"""
+"""定义运行相关的 HTTP 路由。"""
 
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import StreamingResponse
-from backend.execution.persistence.types import (
+from sqlalchemy.orm import Session
+
+from backend.api.dto.schemas import RunDetailResponse, ToolCallSummary
+from backend.api.routes.dependencies import error_response
+from backend.infra.db.engine import get_db
+from backend.run.cancel_run import cancel_run
+from backend.run.execute_run_stream import execute_run_stream
+from backend.run.execute_run_sync import execute_run_sync
+from backend.run.query_run import get_child_run_status, load_run_detail
+from backend.run.types import (
     RunInput,
     RunOutput,
     FinalizeRunInput,
 )
-from backend.memory.session.types import ResetInput
-from backend.api.dto.schemas import RunDetailResponse, ToolCallSummary
-from backend.execution.service import RunService
-from backend.memory.session.service import SessionService
-from backend.api.routes.dependencies import (
-    error_response,
-    get_run_service,
-    get_session_service,
-)
+from backend.session.reset_session import reset_session
+from backend.session.types import ResetInput
 
 router = APIRouter()  # 创建本文件路由器
 
 
 @router.post("/run", response_model=RunOutput)
 def run_agent_api(
-    run_input: RunInput, service: RunService = Depends(get_run_service)
+    run_input: RunInput,
+    db: Session = Depends(get_db),
 ) -> RunOutput:
-    """这个函数是用来让指定的 Agent 跑起来并立刻给出完整答复的（非流式）。
-
-    就像发微信消息一样，你发一句话，它在后台默默思考、查工具，等全部想好之后一次性把完整答案回给你。
-
-    需要拿到的东西：
-    - run_input: RunInput 对象，里面包含当前在哪个会话聊天、用户发了什么、用哪个 Agent 模板等。
-    - service: RunService 实例，由依赖注入提供。
-
-    会给出来的结果：
-    - RunOutput 对象，里面包含了 Agent 的回答以及这次运行的一些状态信息。
-    """
+    """执行非流式运行。"""
     try:
-        return service.run(run_input)
+        return execute_run_sync(
+            db=db,
+            run_input=run_input,
+        )
     except ValueError as exc:
         return error_response(status.HTTP_400_BAD_REQUEST, "bad_request", str(exc))
 
 
 @router.post("/reset")
 def reset_session_api(
-    payload: ResetInput, service: SessionService = Depends(get_session_service)
+    payload: ResetInput,
+    db: Session = Depends(get_db),
 ) -> dict[str, bool]:
-    """这个函数是用来彻底重置或者清空某个聊天会话的历史记录的。
-
-    就像你跟客服聊天按了"清除历史记录"或者"重新开始"一样，清空后可以重新开始一段干净的对话。
-
-    需要拿到的东西：
-    - payload: ResetInput 对象，里面需要包含你要重置哪一个会话（session_id）。
-    - service: SessionService 实例，由依赖注入提供。
-
-    会给出来的结果：
-    - 一个字典，形如 {"status": True}，告诉你重置操作是否成功了。
-    """
+    """重置会话状态。"""
     try:
-        return service.reset_session(payload)
+        return reset_session(
+            db=db,
+            payload=payload,
+        )
     except ValueError as exc:
         return error_response(status.HTTP_400_BAD_REQUEST, "bad_request", str(exc))
 
 
 @router.post("/run/stream")
 async def run_stream_api(
-    run_input: RunInput, service: RunService = Depends(get_run_service)
+    run_input: RunInput,
+    db: Session = Depends(get_db),
 ) -> StreamingResponse:
-    """这个函数是用来让指定的 Agent 跑起来并像"打字机"一样源源不断地实时流式返回它的思考和回答的（SSE 协议）。
-
-    当你要做聊天界面，希望用户能实时看到 Agent 正在一个字一个字蹦出来答案时，就用这个接口。
-
-    需要拿到的东西：
-    - run_input: RunInput 对象，包含了会话、用户输入和 Agent 配置。
-    - service: RunService 实例，由依赖注入提供。
-
-    会给出来的结果：
-    - 一个 StreamingResponse 流式响应，浏览器可以通过 EventSource 监听并实时渲染 Agent 的打字效果。
-    """
+    """执行流式运行。"""
     try:
         return StreamingResponse(
-            service.stream(run_input),
+            execute_run_stream(
+                db=db,
+                run_input=run_input,
+            ),
             media_type="text/event-stream",
         )
     except ValueError as exc:
@@ -107,23 +75,12 @@ def cancel_run_api(
     session_id: str,
     run_id: str,
     payload: FinalizeRunInput,
-    service: RunService = Depends(get_run_service),
+    db: Session = Depends(get_db),
 ):
-    """这个函数是用来手动终结或归档一次 Agent 运行记录的。
-
-    当一次运行由于异常、用户打断或某些外部原因没有正常结束，或者需要人工把回复内容强行写进历史记录时，可以用这个接口来强行写个结尾。
-
-    需要拿到的东西：
-    - session_id: 字符串类型，当前会话的唯一标识。
-    - run_id: 字符串类型，当前运行实例的唯一标识.
-    - payload: FinalizeRunInput 对象，包含强行写入的用户输入、部分回复、Agent 名字和 Skill 名字等信息。
-    - service: RunService 实例，由依赖注入提供。
-
-    会给出来的结果：
-    - 归档操作完成后的运行记录结果。
-    """
+    """手动收口一次运行记录。"""
     try:
-        return service.cancel_run(
+        return cancel_run(
+            db=db,
             session_id=session_id,
             run_id=run_id,
             user_input=payload.user_input,
@@ -136,21 +93,16 @@ def cancel_run_api(
 
 @router.get("/sessions/{session_id}/runs/{run_id}")
 def get_run_detail_api(
-    session_id: str, run_id: str, service: RunService = Depends(get_run_service)
+    session_id: str,
+    run_id: str,
+    db: Session = Depends(get_db),
 ):
-    """这个函数是用来获取某次 Agent 运行的超详细内幕信息的。
-
-    比如这次运行中，Agent 到底调用了哪些工具？工具是什么时候开始调用的，什么时候结束的，工具的输入参数是什么，吐出来的结果是什么，都会被一览无余地查出来。
-
-    需要拿到的东西：
-    - session_id: 字符串类型，会话 ID。
-    - run_id: 字符串类型，运行记录 ID。
-    - service: RunService 实例，由依赖注入提供。
-
-    会给出来的结果：
-    - RunDetailResponse 对象，里面有运行状态、用户输入、最终回复，以及详细的 tool_calls 工具调用记录列表。
-    """
-    run, tool_calls = service.get_run_detail(session_id, run_id)
+    """读取单次运行详情。"""
+    run, tool_calls = load_run_detail(
+        db=db,
+        session_id=session_id,
+        run_id=run_id,
+    )
     if not run:
         return error_response(status.HTTP_404_NOT_FOUND, "not found", "run not found")
     return RunDetailResponse(
@@ -179,16 +131,7 @@ def get_run_detail_api(
 
 @router.get("/child-runs/{run_id}")
 def get_child_run_status_api(
-    run_id: str, service: RunService = Depends(get_run_service)
+    run_id: str,
 ):
-    """这个函数是用来查询异步启动的子 Agent（Child Run）当前运行到哪了。
-
-    因为子 Agent 是丢到后台默默跑的，我们需要拿着它的 ID 去前台"轮询"查查它跑完没有、报错了没有，还是正在跑。
-
-    需要拿到的东西：
-    - run_id: 字符串类型，子 Agent 运行的唯一身份证。
-
-    会给出来的结果：
-    - 一个字典，告诉你当前状态（例如 "running", "done", "error", "not_found"），如果是 done 还会附带上回复内容 reply，如果是 error 则会附带报错信息 error。
-    """
-    return service.get_child_run_status(run_id)
+    """查询子 Agent 运行状态。"""
+    return get_child_run_status(run_id=run_id)
