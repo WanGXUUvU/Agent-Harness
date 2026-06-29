@@ -163,6 +163,12 @@ defineExpose({
       <button class="notice-close" @click="$emit('infoDismiss')">✕</button>
     </div>
 
+    <!-- 错误提示条 (针对压缩等系统任务错误) -->
+    <div v-if="error && error.startsWith('Compact failed')" class="notice-bar error-bar">
+      <span>{{ error }}</span>
+      <button class="notice-close" @click="emit('errorDismiss')">✕</button>
+    </div>
+
     <MessageList
       :messages="messages"
       :isLoading="isLoading"

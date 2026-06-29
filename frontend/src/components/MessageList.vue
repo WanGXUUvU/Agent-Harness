@@ -82,7 +82,8 @@ const handleEditSubmit = (m: AgentMessage) => {
 const visibleMessages = computed(() => {
   const msgs = props.messages.filter((message) =>
     message.role === 'user' ||
-    (message.role === 'assistant' && (!!message.content || (message.timeline && message.timeline.length > 0)))
+    (message.role === 'assistant' && (!!message.content || (message.timeline && message.timeline.length > 0))) ||
+    (message.role === 'system' && message.content === RESET_MARKER_CONTENT)
   );
 
   // 将流式输出块并入 visibleMessages，使其与最终消息共享同一个 DOM 元素，
@@ -311,8 +312,7 @@ const resetMarker = RESET_MARKER_CONTENT;
             <div class="reset-alert" style="width: 100%;">
               <div class="reset-line"></div>
               <div class="reset-text">
-                <span>上下文已重设 (Context Reset)</span>
-                <span class="sub">以上内容已不再被模型记忆感知</span>
+                <span>新对话开始 / New Chat</span>
               </div>
               <div class="reset-line"></div>
             </div>
@@ -329,17 +329,20 @@ const resetMarker = RESET_MARKER_CONTENT;
         >
           <div class="message-row-inner" style="width: 100%;">
             <!-- 如果 m 带有 summary_text，说明是 Compaction，渲染记忆折叠线 -->
-            <div v-if="m.summary_text" class="compact-alert premium-compaction" style="width: 100%;" :title="m.summary_text">
-              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path><path d="M12 12v9"></path><path d="M8 17l4 4 4-4"></path></svg>
-              <span class="pulse-dot"></span>
-              <span>AI 记忆分割线 · 线上消息已折叠压缩 (Context Compacted)</span>
+            <div v-if="m.summary_text" class="compact-alert-line-row" :title="m.summary_text">
+              <div class="compact-line"></div>
+              <div class="compact-text">
+                <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path><path d="M12 12v9"></path><path d="M8 17l4 4 4-4"></path></svg>
+                <span class="pulse-dot" style="margin-left: 4px; margin-right: 0;"></span>
+                <span>AI 记忆已压缩 / Context Compacted</span>
+              </div>
+              <div class="compact-line"></div>
             </div>
             <!-- 如果没有 summary_text，说明是重置会话导致的划分，渲染重置分割线 -->
             <div v-else class="reset-alert" style="width: 100%;">
               <div class="reset-line"></div>
               <div class="reset-text">
-                <span>上下文已重设 (Context Reset)</span>
-                <span class="sub">以上内容已不再被模型记忆感知</span>
+                <span>新对话开始 / New Chat</span>
               </div>
               <div class="reset-line"></div>
             </div>
@@ -488,7 +491,7 @@ const resetMarker = RESET_MARKER_CONTENT;
     </div>
 
     <!-- 错误指示器与重试卡片 -->
-    <div v-if="error" class="message-row role-assistant error-row">
+    <div v-if="error && !error.startsWith('Compact failed')" class="message-row role-assistant error-row">
       <div class="message-row-inner">
         <div class="message-avatar">
           <div class="error-avatar-wrapper">
@@ -714,10 +717,36 @@ const resetMarker = RESET_MARKER_CONTENT;
   gap: 16px;
 }
 
-.compact-alert.premium-compaction {
-  background: rgba(var(--accent-rgb, 99, 102, 241), 0.08);
-  border: 1px solid rgba(var(--accent-rgb, 99, 102, 241), 0.35);
-  box-shadow: 0 0 16px rgba(var(--accent-rgb, 99, 102, 241), 0.15);
+.compact-alert-line-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.compact-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border-dim);
+}
+
+.compact-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.compact-text svg {
+  color: var(--text-muted);
+  opacity: 0.8;
 }
 
 .pulse-dot {
